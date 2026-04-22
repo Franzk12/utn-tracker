@@ -304,7 +304,6 @@ function Modal({title,onClose,children,width=520}){
   useEffect(()=>{
     const fn=e=>e.key==="Escape"&&onClose();
     window.addEventListener("keydown",fn);
-    // Autofocus al primer input o select dentro del modal
     setTimeout(()=>{
       const first=innerRef.current?.querySelector("input,select,textarea");
       if(first) first.focus();
@@ -312,14 +311,23 @@ function Modal({title,onClose,children,width=520}){
     return()=>window.removeEventListener("keydown",fn);
   },[onClose]);
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px",overflowY:"auto"}}
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div ref={innerRef} className="card fade-in" style={{width:"100%",maxWidth:width,margin:"auto",padding:24,position:"relative"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div ref={innerRef} className="card fade-in" style={{
+        width:"100%",maxWidth:width,
+        maxHeight:"calc(100vh - 48px)",
+        display:"flex",flexDirection:"column",
+        position:"relative"
+      }}>
+        {/* Header fijo */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px 0",flexShrink:0}}>
           <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>{title}</span>
           <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,lineHeight:1,padding:4,cursor:"pointer"}}>×</button>
         </div>
-        {children}
+        {/* Contenido con scroll */}
+        <div style={{overflowY:"auto",padding:"16px 24px 24px",flex:1}}>
+          {children}
+        </div>
       </div>
     </div>
   );
