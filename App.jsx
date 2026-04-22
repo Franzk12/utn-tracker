@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SUPABASE ────────────────────────────────────────────────────────────────
@@ -17,15 +17,25 @@ const ESTADOS = {
 };
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const HORAS       = Array.from({length:14},(_,i)=>`${String(i+7).padStart(2,"0")}:00`);
-const TIPO_EVENTO = { parcial:{label:"Parcial",color:"#60a5fa"}, final:{label:"Final",color:"#f87171"}, tp:{label:"TP",color:"#6ee7b7"}, otro:{label:"Otro",color:"#94a3b8"} };
-const MODOS_IA    = [
+const TIPO_EVENTO = {
+  parcial:{label:"Parcial",color:"#60a5fa"},
+  final:  {label:"Final",  color:"#f87171"},
+  tp:     {label:"TP",     color:"#6ee7b7"},
+  otro:   {label:"Otro",   color:"#94a3b8"},
+};
+const MODOS_IA = [
   { id:"tutor",      label:"Tutor",       desc:"Te evalúa con preguntas para ver si entendiste el tema"    },
   { id:"planificar", label:"Planificar",  desc:"Te arma un plan de estudio en base a tus días disponibles" },
   { id:"tp",         label:"TP / Código", desc:"Te guía en trabajos prácticos sin darte la respuesta"      },
   { id:"libre",      label:"Chat libre",  desc:"Hacé cualquier consulta académica sin estructura"           },
 ];
+const MODELOS_IA = [
+  { id:"claude", label:"Claude Sonnet", color:"#c96442" },
+  { id:"gpt",    label:"GPT-4o mini",   color:"#10a37f" },
+  { id:"gemini", label:"Gemini Flash",  color:"#4285f4" },
+];
 
-// ─── ICON ────────────────────────────────────────────────────────────────────
+// ─── ICON ─────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size=16, color="currentColor" }) => {
   const p = {
     dashboard:"M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
@@ -44,7 +54,9 @@ const Icon = ({ name, size=16, color="currentColor" }) => {
     send:     "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
     refresh:  "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     logout:   "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
-    user:     "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+    warn:     "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+    bell:     "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
+    lock:     "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -91,10 +103,13 @@ const G = `
   .btn-danger{background:transparent;color:var(--red);border:1px solid rgba(192,80,77,0.25);padding:6px 10px;border-radius:var(--radius);font-size:12px;display:inline-flex;align-items:center;transition:all 0.2s;}
   .btn-danger:hover{background:rgba(192,80,77,0.1);}
   .section-title{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:12px;}
+  .field-error{font-size:11px;color:var(--red);margin-top:4px;}
   @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
   .fade-in{animation:fadeIn 0.2s ease forwards;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
   .pulse{animation:pulse 1.4s ease infinite;}
+  @keyframes toastIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .sidebar{display:flex;}
   .bottom-nav{display:none;}
   .main-pad{padding:22px 26px;}
@@ -107,16 +122,202 @@ const G = `
   }
 `;
 
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function ToastContainer({ toasts }) {
+  return (
+    <div style={{position:"fixed",bottom:24,right:20,zIndex:999,display:"flex",flexDirection:"column",gap:8,pointerEvents:"none"}}>
+      {toasts.map(t=>(
+        <div key={t.id} style={{background:"#1e1a18",border:"1px solid rgba(192,80,77,0.4)",borderLeft:"3px solid var(--red)",borderRadius:8,padding:"11px 16px",maxWidth:320,display:"flex",alignItems:"center",gap:10,animation:"toastIn 0.25s ease",boxShadow:"0 4px 20px rgba(0,0,0,0.5)"}}>
+          <Icon name="warn" size={15} color="var(--red)"/>
+          <span style={{fontSize:12,color:"var(--text)",lineHeight:1.4}}>{t.msg}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useToast() {
+  const [toasts,setToasts]=useState([]);
+  const show=useCallback((msg)=>{
+    const id=Date.now();
+    setToasts(t=>[...t,{id,msg}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),4000);
+  },[]);
+  return {toasts,show};
+}
+
+// ─── NOTIFICACIONES INTERNAS ──────────────────────────────────────────────────
+function useNotificaciones(materias, eventos) {
+  return useMemo(() => {
+    const notifs = [];
+    const hoy = new Date();
+    const diasSem = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+    const dHoy = diasSem[hoy.getDay()];
+
+    // Materias de hoy
+    const matHoy = materias.filter(m => m.dias?.includes(dHoy) && ["cursando","regular"].includes(m.estado));
+    if (matHoy.length > 0) {
+      notifs.push({
+        id:"hoy",
+        tipo:"info",
+        titulo:`${matHoy.length} ${matHoy.length===1?"materia":"materias"} hoy`,
+        detalle: matHoy.map(m=>`${m.horario} · ${m.nombre}`).join(" / "),
+        icon:"horarios",
+      });
+    }
+
+    // Eventos próximos (7 días)
+    eventos.filter(e=>{
+      const d=Math.ceil((new Date(e.fecha)-hoy)/86400000);
+      return d>=0&&d<=7;
+    }).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).forEach(ev=>{
+      const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
+      const mat=materias.find(m=>m.id===ev.materia_id);
+      const tipo=TIPO_EVENTO[ev.tipo];
+      notifs.push({
+        id:`ev_${ev.id}`,
+        tipo: d<=1?"urgente":"aviso",
+        titulo: d===0?`Hoy: ${ev.titulo}`: d===1?`Mañana: ${ev.titulo}`:`En ${d}d: ${ev.titulo}`,
+        detalle: `${mat?.nombre||""}${ev.descripcion?" · "+ev.descripcion:""}`,
+        color: tipo?.color,
+        icon:"eventos",
+      });
+    });
+
+    // Materias libres (recordatorio)
+    const libres = materias.filter(m=>m.estado==="libre");
+    if (libres.length > 0) {
+      notifs.push({
+        id:"libres",
+        tipo:"warning",
+        titulo:`${libres.length} ${libres.length===1?"materia libre":"materias libres"} para recursar`,
+        detalle: libres.map(m=>m.nombre).join(", "),
+        icon:"warn",
+      });
+    }
+
+    // Finales próximos (30 días)
+    const finales=eventos.filter(e=>{
+      const d=Math.ceil((new Date(e.fecha)-hoy)/86400000);
+      return e.tipo==="final"&&d>=0&&d<=30;
+    });
+    if(finales.length>0){
+      notifs.push({
+        id:"finales",
+        tipo:"aviso",
+        titulo:`${finales.length} ${finales.length===1?"final":"finales"} en los próximos 30 días`,
+        detalle: finales.map(e=>{const d=Math.ceil((new Date(e.fecha)-hoy)/86400000);return `${e.titulo} (${d===0?"hoy":d+"d"})`;}).join(", "),
+        icon:"eventos",
+        color:"#f87171",
+      });
+    }
+
+    return notifs;
+  }, [materias, eventos]);
+}
+
+function PanelNotificaciones({ materias, eventos, onClose }) {
+  const notifs = useNotificaciones(materias, eventos);
+  const colores = {
+    urgente: { bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.35)", color:"#f87171" },
+    aviso:   { bg:"rgba(74,144,217,0.1)",  border:"rgba(74,144,217,0.3)",   color:"#4a90d9" },
+    info:    { bg:"rgba(110,231,183,0.08)",border:"rgba(110,231,183,0.25)", color:"#6ee7b7" },
+    warning: { bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)",  color:"#fbbf24" },
+  };
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="card fade-in" style={{width:"100%",maxWidth:440,margin:"auto",padding:0,overflow:"hidden"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Icon name="bell" size={16} color="var(--blue)"/>
+            <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>Notificaciones</span>
+            {notifs.length>0&&<span style={{background:"var(--blue)",color:"#fff",borderRadius:10,fontSize:10,fontWeight:700,padding:"1px 7px"}}>{notifs.length}</span>}
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,cursor:"pointer",padding:4}}>×</button>
+        </div>
+        <div style={{maxHeight:"70vh",overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
+          {notifs.length===0?(
+            <div style={{textAlign:"center",padding:"32px 0",color:"var(--text2)",fontSize:13}}>
+              Sin notificaciones por ahora
+            </div>
+          ):notifs.map(n=>{
+            const c=colores[n.tipo]||colores.info;
+            return(
+              <div key={n.id} style={{background:c.bg,border:`1px solid ${n.color||c.border}22`,borderLeft:`3px solid ${n.color||c.color}`,borderRadius:8,padding:"11px 14px"}}>
+                <div style={{fontSize:13,fontWeight:600,color:n.color||c.color,marginBottom:3}}>{n.titulo}</div>
+                {n.detalle&&<div style={{fontSize:11,color:"var(--text2)",lineHeight:1.5}}>{n.detalle}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BLOQUEO ASISTENTE IA ─────────────────────────────────────────────────────
+function BloqueadoIA() {
+  return (
+    <div className="fade-in" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:360,gap:20,padding:32,textAlign:"center"}}>
+      <div style={{width:56,height:56,borderRadius:14,background:"var(--surface2)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name="lock" size={24} color="var(--text3)"/>
+      </div>
+      <div>
+        <div style={{fontFamily:"'Barlow Condensed'",fontSize:20,fontWeight:700,marginBottom:8}}>Asistente IA no activado</div>
+        <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.7,maxWidth:320}}>
+          Esta función requiere activación. Contactá al administrador del sistema para obtener acceso al asistente de estudio con IA.
+        </div>
+      </div>
+      <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 18px",fontSize:12,color:"var(--text2)"}}>
+        franzk.dev — contacto para extensiones
+      </div>
+    </div>
+  );
+}
+function ConfirmModal({nombre,onConfirm,onClose}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="card fade-in" style={{maxWidth:360,width:"100%",padding:24}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <Icon name="warn" size={20} color="var(--red)"/>
+          <span style={{fontFamily:"'Barlow Condensed'",fontSize:16,fontWeight:700}}>Confirmar eliminación</span>
+        </div>
+        <p style={{fontSize:13,color:"var(--text2)",lineHeight:1.6,marginBottom:20}}>
+          ¿Eliminar <strong style={{color:"var(--text)"}}>{nombre}</strong>? Esta acción no se puede deshacer.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn-ghost" style={{flex:1,justifyContent:"center"}} onClick={onClose}>Cancelar</button>
+          <button style={{flex:1,padding:"8px",borderRadius:"var(--radius)",border:"none",background:"var(--red)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={onConfirm}>
+            <Icon name="trash" size={13} color="#fff"/>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 function Modal({title,onClose,children,width=520}){
-  useEffect(()=>{const fn=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn);},[onClose]);
+  const innerRef=useRef(null);
+  useEffect(()=>{
+    const fn=e=>e.key==="Escape"&&onClose();
+    window.addEventListener("keydown",fn);
+    // Autofocus al primer input o select dentro del modal
+    setTimeout(()=>{
+      const first=innerRef.current?.querySelector("input,select,textarea");
+      if(first) first.focus();
+    },50);
+    return()=>window.removeEventListener("keydown",fn);
+  },[onClose]);
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px",overflowY:"auto"}}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="card fade-in" style={{width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",padding:24}}>
+      <div ref={innerRef} className="card fade-in" style={{width:"100%",maxWidth:width,margin:"auto",padding:24,position:"relative"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>{title}</span>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,lineHeight:1,padding:4}}>×</button>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,lineHeight:1,padding:4,cursor:"pointer"}}>×</button>
         </div>
         {children}
       </div>
@@ -124,7 +325,7 @@ function Modal({title,onClose,children,width=520}){
   );
 }
 function Lbl({children}){return <label style={{fontSize:11,color:"var(--text2)",marginBottom:5,display:"block",fontWeight:500}}>{children}</label>;}
-function Spinner(){return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40,color:"var(--text2)",fontSize:13,gap:10}}><div style={{width:18,height:18,border:"2px solid var(--border2)",borderTop:"2px solid var(--blue)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/> Cargando...</div>;}
+function Spinner(){return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40,color:"var(--text2)",fontSize:13,gap:10}}><div style={{width:18,height:18,border:"2px solid var(--border2)",borderTop:"2px solid var(--blue)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Cargando...</div>;}
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 function AuthPage({onAuth}){
@@ -135,32 +336,29 @@ function AuthPage({onAuth}){
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const [ok,setOk]=useState(false);
-
   const submit=async()=>{
-    setErr(""); setLoading(true);
+    setErr("");setLoading(true);
     if(modo==="login"){
       const {error}=await sb.auth.signInWithPassword({email,password:pass});
-      if(error) setErr(error.message); else onAuth();
-    } else {
+      if(error)setErr(error.message);else onAuth();
+    }else{
       const {error}=await sb.auth.signUp({email,password:pass,options:{data:{nombre}}});
-      if(error) setErr(error.message); else setOk(true);
+      if(error)setErr(error.message);else setOk(true);
     }
     setLoading(false);
   };
-
   return(
     <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <style>{G+`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{G}</style>
       <div className="card" style={{width:"100%",maxWidth:380,padding:32}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{width:44,height:44,background:"var(--blue)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed'",fontWeight:800,color:"#fff",fontSize:22,margin:"0 auto 12px"}}>U</div>
           <div style={{fontFamily:"'Barlow Condensed'",fontWeight:800,fontSize:22,letterSpacing:0.5}}>UTN TRACKER</div>
           <div style={{fontSize:11,color:"var(--text3)",letterSpacing:1.5,marginTop:2}}>SISTEMAS · TUC</div>
         </div>
-
         {ok?(
           <div style={{textAlign:"center",color:"var(--text2)",fontSize:13,lineHeight:1.6}}>
-            <div style={{fontSize:28,marginBottom:12}}>✓</div>
+            <div style={{fontSize:28,marginBottom:12,color:"var(--green)"}}>✓</div>
             Revisá tu email para confirmar la cuenta y luego iniciá sesión.
             <button className="btn-ghost" style={{marginTop:16,width:"100%",justifyContent:"center"}} onClick={()=>{setOk(false);setModo("login");}}>Ir al login</button>
           </div>
@@ -286,12 +484,29 @@ function Dashboard({materias,eventos}){
 // ─── MATERIAS ─────────────────────────────────────────────────────────────────
 function FormMateria({initial,onSave,onClose}){
   const [f,setF]=useState(initial||{nombre:"",año:1,cuatrimestre:1,estado:"pendiente",nota:"",hs:4,dias:[],horario:"08:00",aula:""});
+  const [errs,setErrs]=useState({});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const tD=d=>s("dias",f.dias?.includes(d)?f.dias.filter(x=>x!==d):[...(f.dias||[]),d]);
   const nN=["aprobada_final","promocionada","regular"].includes(f.estado);
+
+  const validar=()=>{
+    const e={};
+    if(!f.nombre.trim()) e.nombre="El nombre es requerido";
+    if(nN&&f.nota!==""){
+      const n=Number(f.nota);
+      if(isNaN(n)||n<1||n>10) e.nota="La nota debe ser entre 1 y 10";
+    }
+    setErrs(e);
+    return Object.keys(e).length===0;
+  };
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:13}}>
-      <div><Lbl>Nombre</Lbl><input style={{width:"100%"}} value={f.nombre} onChange={e=>s("nombre",e.target.value)} placeholder="Ej: Algoritmos y Estructura de Datos"/></div>
+      <div>
+        <Lbl>Nombre</Lbl>
+        <input style={{width:"100%",borderColor:errs.nombre?"var(--red)":undefined}} value={f.nombre} onChange={e=>{s("nombre",e.target.value);setErrs(p=>({...p,nombre:""}));}} placeholder="Ej: Algoritmos y Estructura de Datos"/>
+        {errs.nombre&&<div className="field-error">{errs.nombre}</div>}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
         <div><Lbl>Año</Lbl><select style={{width:"100%"}} value={f.año} onChange={e=>s("año",+e.target.value)}>{[1,2,3,4,5].map(n=><option key={n}>{n}</option>)}</select></div>
         <div><Lbl>Cuatrimestre</Lbl><select style={{width:"100%"}} value={f.cuatrimestre} onChange={e=>s("cuatrimestre",+e.target.value)}><option value={1}>1°</option><option value={2}>2°</option></select></div>
@@ -299,7 +514,11 @@ function FormMateria({initial,onSave,onClose}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
         <div><Lbl>Estado</Lbl><select style={{width:"100%"}} value={f.estado} onChange={e=>s("estado",e.target.value)}>{Object.entries(ESTADOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
-        {nN&&<div><Lbl>Nota</Lbl><input type="number" style={{width:"100%"}} value={f.nota||""} onChange={e=>s("nota",+e.target.value)} min={1} max={10} placeholder="1–10"/></div>}
+        {nN&&<div>
+          <Lbl>Nota</Lbl>
+          <input type="number" style={{width:"100%",borderColor:errs.nota?"var(--red)":undefined}} value={f.nota||""} onChange={e=>{s("nota",e.target.value);setErrs(p=>({...p,nota:""}));}} min={1} max={10} placeholder="1–10"/>
+          {errs.nota&&<div className="field-error">{errs.nota}</div>}
+        </div>}
       </div>
       <div>
         <Lbl>Días de cursado</Lbl>
@@ -314,7 +533,7 @@ function FormMateria({initial,onSave,onClose}){
         <div><Lbl>Aula</Lbl><input style={{width:"100%"}} value={f.aula} onChange={e=>s("aula",e.target.value)} placeholder="Ej: Lab1"/></div>
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button className="btn-primary" style={{flex:1}} onClick={()=>{if(f.nombre.trim())onSave(f);}}>{initial?"Guardar cambios":"Agregar materia"}</button>
+        <button className="btn-primary" style={{flex:1}} onClick={()=>{if(validar())onSave(f);}}>{initial?"Guardar cambios":"Agregar materia"}</button>
         <button className="btn-ghost" onClick={onClose}>Cancelar</button>
       </div>
     </div>
@@ -326,6 +545,7 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
   const [busq,setBusq]=useState("");
   const [edit,setEdit]=useState(null);
   const [add,setAdd]=useState(false);
+  const [confirm,setConfirm]=useState(null); // {id, nombre}
   const fil=useMemo(()=>materias.filter(m=>(filtro==="all"||m.estado===filtro)&&m.nombre.toLowerCase().includes(busq.toLowerCase())).sort((a,b)=>a.año-b.año||a.cuatrimestre-b.cuatrimestre),[materias,filtro,busq]);
   return(
     <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
@@ -366,7 +586,7 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
               </div>
               <div style={{display:"flex",gap:6,flexShrink:0}}>
                 <button className="btn-ghost" style={{padding:"5px 9px",fontSize:12}} onClick={()=>setEdit(m)}><Icon name="edit" size={13}/>Editar</button>
-                <button className="btn-danger" onClick={()=>onDelete(m.id)}><Icon name="trash" size={13}/></button>
+                <button className="btn-danger" onClick={()=>setConfirm({id:m.id,nombre:m.nombre})}><Icon name="trash" size={13}/></button>
               </div>
             </div>
           );})}
@@ -374,6 +594,7 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
       )}
       {add&&<Modal title="Nueva Materia" onClose={()=>setAdd(false)}><FormMateria onSave={f=>{onAdd(f);setAdd(false);}} onClose={()=>setAdd(false)}/></Modal>}
       {edit&&<Modal title="Editar Materia" onClose={()=>setEdit(null)}><FormMateria initial={edit} onSave={f=>{onEdit(edit.id,f);setEdit(null);}} onClose={()=>setEdit(null)}/></Modal>}
+      {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{onDelete(confirm.id);setConfirm(null);}}/>}
     </div>
   );
 }
@@ -417,21 +638,37 @@ function VistaHorarios({materias}){
 // ─── EVENTOS ──────────────────────────────────────────────────────────────────
 function FormEvento({materias,initial,onSave,onClose}){
   const [f,setF]=useState(initial||{materia_id:materias[0]?.id||"",tipo:"parcial",titulo:"",fecha:"",hora:"09:00",descripcion:""});
+  const [errs,setErrs]=useState({});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const validar=()=>{
+    const e={};
+    if(!f.titulo||f.titulo.trim().length<3) e.titulo="El título debe tener al menos 3 caracteres";
+    if(!f.fecha) e.fecha="La fecha es requerida";
+    setErrs(e);
+    return Object.keys(e).length===0;
+  };
   return(
     <div style={{display:"flex",flexDirection:"column",gap:13}}>
       <div><Lbl>Materia</Lbl><select style={{width:"100%"}} value={f.materia_id} onChange={e=>s("materia_id",e.target.value)}>{materias.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
         <div><Lbl>Tipo</Lbl><select style={{width:"100%"}} value={f.tipo} onChange={e=>s("tipo",e.target.value)}>{Object.entries(TIPO_EVENTO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
-        <div><Lbl>Fecha</Lbl><input type="date" style={{width:"100%",colorScheme:"dark"}} value={f.fecha} onChange={e=>s("fecha",e.target.value)}/></div>
+        <div>
+          <Lbl>Fecha</Lbl>
+          <input type="date" style={{width:"100%",colorScheme:"dark",borderColor:errs.fecha?"var(--red)":undefined}} value={f.fecha} onChange={e=>{s("fecha",e.target.value);setErrs(p=>({...p,fecha:""}));}}/>
+          {errs.fecha&&<div className="field-error">{errs.fecha}</div>}
+        </div>
       </div>
-      <div><Lbl>Título</Lbl><input style={{width:"100%"}} value={f.titulo} onChange={e=>s("titulo",e.target.value)} placeholder="Ej: 1er Parcial"/></div>
+      <div>
+        <Lbl>Título</Lbl>
+        <input style={{width:"100%",borderColor:errs.titulo?"var(--red)":undefined}} value={f.titulo} onChange={e=>{s("titulo",e.target.value);setErrs(p=>({...p,titulo:""}));}} placeholder="Ej: 1er Parcial"/>
+        {errs.titulo&&<div className="field-error">{errs.titulo}</div>}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
         <div><Lbl>Hora</Lbl><select style={{width:"100%"}} value={f.hora} onChange={e=>s("hora",e.target.value)}>{HORAS.map(h=><option key={h}>{h}</option>)}</select></div>
         <div><Lbl>Descripción</Lbl><input style={{width:"100%"}} value={f.descripcion} onChange={e=>s("descripcion",e.target.value)} placeholder="Temas, etc."/></div>
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button className="btn-primary" style={{flex:1}} onClick={()=>{if(f.titulo&&f.fecha)onSave(f);}}>{initial?"Guardar":"Agregar evento"}</button>
+        <button className="btn-primary" style={{flex:1}} onClick={()=>{if(validar())onSave(f);}}>{initial?"Guardar":"Agregar evento"}</button>
         <button className="btn-ghost" onClick={onClose}>Cancelar</button>
       </div>
     </div>
@@ -442,6 +679,7 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
   const [edit,setEdit]=useState(null);
   const [add,setAdd]=useState(false);
   const [ft,setFt]=useState("all");
+  const [confirm,setConfirm]=useState(null);
   const hoy=new Date();
   const fil=useMemo(()=>eventos.filter(e=>ft==="all"||e.tipo===ft).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)),[eventos,ft]);
   const prox=fil.filter(e=>new Date(e.fecha)>=hoy);
@@ -468,7 +706,7 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
         </div>
         <div style={{display:"flex",gap:5}}>
           <button className="btn-ghost" style={{padding:"5px 8px"}} onClick={()=>setEdit(ev)}><Icon name="edit" size={13}/></button>
-          <button className="btn-danger" onClick={()=>onDelete(ev.id)}><Icon name="trash" size={13}/></button>
+          <button className="btn-danger" onClick={()=>setConfirm({id:ev.id,nombre:ev.titulo})}><Icon name="trash" size={13}/></button>
         </div>
       </div>
     );
@@ -486,52 +724,56 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
       {fil.length===0&&<div className="card" style={{padding:24,textAlign:"center",color:"var(--text2)",fontSize:13}}>Sin eventos</div>}
       {add&&<Modal title="Nuevo Evento" onClose={()=>setAdd(false)}><FormEvento materias={materias} onSave={f=>{onAdd(f);setAdd(false);}} onClose={()=>setAdd(false)}/></Modal>}
       {edit&&<Modal title="Editar Evento" onClose={()=>setEdit(null)}><FormEvento materias={materias} initial={edit} onSave={f=>{onEdit(edit.id,f);setEdit(null);}} onClose={()=>setEdit(null)}/></Modal>}
+      {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{onDelete(confirm.id);setConfirm(null);}}/>}
     </div>
   );
 }
 
 // ─── ARCHIVOS ─────────────────────────────────────────────────────────────────
-function VistaArchivos({materias,userId}){
+function VistaArchivos({materias,userId,showToast}){
   const [archivos,setArchivos]=useState([]);
   const [loading,setLoading]=useState(true);
   const [fm,setFm]=useState("all");
   const [drag,setDrag]=useState(false);
   const [uploading,setUploading]=useState(false);
+  const [confirm,setConfirm]=useState(null);
 
-  useEffect(()=>{ cargar(); },[]);
+  useEffect(()=>{cargar();},[]);
 
   const cargar=async()=>{
     setLoading(true);
-    const {data}=await sb.from("archivos").select("*").order("created_at",{ascending:false});
+    const {data,error}=await sb.from("archivos").select("*").order("created_at",{ascending:false});
+    if(error) showToast(error.message);
     setArchivos(data||[]);
     setLoading(false);
   };
 
-const subir=async(files)=>{
+  const subir=async(files)=>{
     setUploading(true);
     for(const file of Array.from(files)){
       const path=`${userId}/${Date.now()}_${file.name}`;
-      const reader=new FileReader();
-      const fileBase64=await new Promise(r=>{reader.onload=()=>r(reader.result.split(",")[1]);reader.readAsDataURL(file);});
-      const res=await fetch("/api/upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path,contentType:file.type,fileBase64})});
-      if(res.ok){
-        const matId=fm==="all"?(materias[0]?.id||null):fm;
-        await sb.from("archivos").insert({user_id:userId,materia_id:matId,nombre:file.name,tipo:file.name.split(".").pop().toUpperCase(),tamaño:file.size,storage_path:path});
-      }
+      const {error:upErr}=await sb.storage.from("archivos").upload(path,file);
+      if(upErr){showToast(upErr.message);continue;}
+      const matId=fm==="all"?(materias[0]?.id||null):fm;
+      const {error:dbErr}=await sb.from("archivos").insert({user_id:userId,materia_id:matId,nombre:file.name,tipo:file.name.split(".").pop().toUpperCase(),tamaño:file.size,storage_path:path});
+      if(dbErr) showToast(dbErr.message);
     }
     await cargar();
     setUploading(false);
   };
 
-const eliminar=async(a)=>{
-    await sb.from("archivos").delete().eq("id",a.id);
+  const eliminar=async(a)=>{
+    if(a.storage_path){const {error}=await sb.storage.from("archivos").remove([a.storage_path]);if(error)showToast(error.message);}
+    const {error}=await sb.from("archivos").delete().eq("id",a.id);
+    if(error){showToast(error.message);return;}
     setArchivos(prev=>prev.filter(x=>x.id!==a.id));
   };
-const descargar=async(a)=>{
+
+  const descargar=async(a)=>{
     if(!a.storage_path) return;
-    const res=await fetch("/api/download",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:a.storage_path})});
-    const data=await res.json();
-    if(data.url) window.open(data.url,"_blank");
+    const {data,error}=await sb.storage.from("archivos").createSignedUrl(a.storage_path,60);
+    if(error){showToast(error.message);return;}
+    if(data?.signedUrl) window.open(data.signedUrl,"_blank");
   };
 
   const fil=fm==="all"?archivos:archivos.filter(a=>a.materia_id===fm);
@@ -572,19 +814,23 @@ const descargar=async(a)=>{
               </div>
               <div style={{display:"flex",gap:5}}>
                 {a.storage_path&&<button className="btn-ghost" style={{padding:"5px 9px",fontSize:12}} onClick={()=>descargar(a)}>Descargar</button>}
-                <button className="btn-danger" onClick={()=>eliminar(a)}><Icon name="trash" size={13}/></button>
+                <button className="btn-danger" onClick={()=>setConfirm({archivo:a,nombre:a.nombre})}><Icon name="trash" size={13}/></button>
               </div>
             </div>
           );
         })}
       </div>
+      {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
     </div>
   );
 }
 
 // ─── ASISTENTE IA ─────────────────────────────────────────────────────────────
 function VistaAsistente({materias,eventos}){
-  const [historial,setHistorial]=useState({});
+  const [historial,setHistorial]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem("utn_historial")||"{}");}catch{return{};}
+  });
+  const [modelo,setModelo]=useState(()=>localStorage.getItem("utn_modelo")||"claude");
   const [materiaId,setMateriaId]=useState(materias.find(m=>["cursando","regular"].includes(m.estado))?.id||materias[0]?.id||null);
   const [modo,setModo]=useState(null);
   const [msgs,setMsgs]=useState([]);
@@ -592,9 +838,25 @@ function VistaAsistente({materias,eventos}){
   const [loading,setLoading]=useState(false);
   const bottomRef=useRef(null);
   const materia=materias.find(m=>m.id===materiaId);
-  const [modelo,setModelo]=useState(()=>localStorage.getItem("utn_modelo")||"gemini");
-  useEffect(()=>{if(materiaId&&modo){const k=`${materiaId}_${modo}`;setMsgs(historial[k]||[]);}},[materiaId,modo]);
-  useEffect(()=>{if(materiaId&&modo&&msgs.length>0){const k=`${materiaId}_${modo}`;setHistorial(h=>({...h,[k]:msgs.slice(-40)}));}},[msgs]);
+
+  // Cambio de modelo → persiste en localStorage
+  const cambiarModelo=(m)=>{setModelo(m);localStorage.setItem("utn_modelo",m);};
+
+  // Cargar historial al cambiar materia/modo
+  useEffect(()=>{
+    if(materiaId&&modo){const k=`${materiaId}_${modo}`;setMsgs(historial[k]||[]);}
+  },[materiaId,modo]);
+
+  // Guardar historial al cambiar msgs (slice -20)
+  useEffect(()=>{
+    if(materiaId&&modo&&msgs.length>0){
+      const k=`${materiaId}_${modo}`;
+      const nuevo={...historial,[k]:msgs.slice(-20)};
+      setHistorial(nuevo);
+      localStorage.setItem("utn_historial",JSON.stringify(nuevo));
+    }
+  },[msgs]);
+
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[msgs,loading]);
 
   const mkSystem=(m)=>{
@@ -604,8 +866,15 @@ function VistaAsistente({materias,eventos}){
       tutor:`${base} Modo TUTOR: evaluá si el alumno entendió los temas. Hacé preguntas concretas de a una, esperá respuesta, evaluá. No des la respuesta antes. Empezá preguntando qué tema quiere repasar.`,
       planificar:`${base} Modo PLANIFICADOR: ayudá a organizar un plan de estudio. Preguntá cuántos días y horas disponibles tiene. Luego armá un plan día por día.`,
       tp:`${base} Modo TP: ayudá con trabajos prácticos guiando sin dar la solución directa. Empezá preguntando en qué consiste el TP.`,
-      libre:`${base} Modo LIBRE: respondé cualquier consulta académica sobre la materia. Saludo breve y preguntá en qué ayudar.`,
+      libre:`${base} Modo LIBRE: respondé cualquier consulta académica. Saludo breve y preguntá en qué ayudar.`,
     }[m]||base;
+  };
+
+  const callIA=async(systemPrompt,messages)=>{
+    const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:systemPrompt,messages,modelo})});
+    const data=await res.json();
+    if(data.error) throw new Error(data.error);
+    return data.text;
   };
 
   const iniciarModo=async(m)=>{
@@ -614,10 +883,9 @@ function VistaAsistente({materias,eventos}){
     if(historial[k]?.length>0){setMsgs(historial[k]);return;}
     setMsgs([]);setLoading(true);
     try{
-      const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:mkSystem(m),messages:[{role:"user",content:"Hola, empecemos."}],modelo})});
-      const data=await res.json();
-      setMsgs([{role:"assistant",content:data.text||"Hola, ¿en qué puedo ayudarte?"}]);
-    }catch{setMsgs([{role:"assistant",content:"Hola, estoy listo. ¿En qué te puedo ayudar?"}]);}
+      const txt=await callIA(mkSystem(m),[{role:"user",content:"Hola, empecemos."}]);
+      setMsgs([{role:"assistant",content:txt}]);
+    }catch(e){setMsgs([{role:"assistant",content:"Hola, estoy listo. ¿En qué te puedo ayudar?"}]);}
     setLoading(false);
   };
 
@@ -627,68 +895,97 @@ function VistaAsistente({materias,eventos}){
     const newMsgs=[...msgs,userMsg];
     setMsgs(newMsgs);setInput("");setLoading(true);
     try{
-     const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:mkSystem(modo),messages:newMsgs.map(m=>({role:m.role,content:m.content})),modelo})});
-      const data=await res.json();
-      setMsgs(m=>[...m,{role:"assistant",content:data.text||"No pude responder."}]);
-    }catch{setMsgs(m=>[...m,{role:"assistant",content:"Error de conexión."}]);}
+      const txt=await callIA(mkSystem(modo),newMsgs.map(m=>({role:m.role,content:m.content})));
+      setMsgs(m=>[...m,{role:"assistant",content:txt}]);
+    }catch(e){setMsgs(m=>[...m,{role:"assistant",content:`Error: ${e.message}`}]);}
     setLoading(false);
   };
 
-const MODELOS=[
-  {id:"claude",label:"Claude Sonnet",color:"#c96442"},
-  {id:"gpt",label:"GPT-4o mini",color:"#10a37f"},
-  {id:"gemini",label:"Gemini Flash",color:"#4285f4"},
-];
+  const limpiar=()=>{
+    setMsgs([]);
+    if(materiaId&&modo){
+      const k=`${materiaId}_${modo}`;
+      const nuevo={...historial};delete nuevo[k];
+      setHistorial(nuevo);
+      localStorage.setItem("utn_historial",JSON.stringify(nuevo));
+    }
+  };
 
-if(!modo) return(
+  const modeloInfo=MODELOS_IA.find(m=>m.id===modelo);
+
+  if(!modo) return(
     <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:20}}>
+      {/* Selector de materia */}
       <div>
-        <Lbl>Motor de IA</Lbl>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {MODELOS.map(mo=>(
-            <button key={mo.id} onClick={()=>{setModelo(mo.id);localStorage.setItem("utn_modelo",mo.id);}}
-              style={{padding:"6px 14px",borderRadius:6,fontSize:12,fontWeight:600,border:`1px solid ${modelo===mo.id?mo.color:"var(--border)"}`,background:modelo===mo.id?`${mo.color}18`:"transparent",color:modelo===mo.id?mo.color:"var(--text2)",transition:"all 0.15s"}}>
-              {mo.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div><Lbl>Seleccioná una materia</Lbl>
+        <Lbl>Seleccioná una materia</Lbl>
         <select style={{width:"100%",maxWidth:420}} value={materiaId||""} onChange={e=>setMateriaId(e.target.value)}>
           {materias.map(m=><option key={m.id} value={m.id}>{m.nombre} ({ESTADOS[m.estado]?.label})</option>)}
         </select>
       </div>
+
       {materia&&<div className="card" style={{padding:"14px 16px",borderLeft:"3px solid var(--blue)"}}>
         <div style={{fontSize:14,fontWeight:600}}>{materia.nombre}</div>
         <div style={{fontSize:11,color:"var(--text2)",marginTop:2}}>Año {materia.año} · {materia.cuatrimestre}° cuat. · <span style={{color:ESTADOS[materia.estado]?.color}}>{ESTADOS[materia.estado]?.label}</span></div>
       </div>}
-      <div><p className="section-title">Elegí un modo</p>
+
+      {/* Motor de IA */}
+      <div>
+        <p className="section-title">Motor de IA</p>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {MODELOS_IA.map(m=>(
+            <button key={m.id} onClick={()=>cambiarModelo(m.id)} style={{
+              padding:"8px 16px",borderRadius:6,fontSize:13,fontWeight:600,
+              border:`1px solid ${modelo===m.id?m.color:"var(--border)"}`,
+              background:modelo===m.id?`${m.color}18`:"transparent",
+              color:modelo===m.id?m.color:"var(--text2)",
+              transition:"all 0.15s"
+            }}>{m.label}</button>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:"var(--text3)",marginTop:8}}>
+          Motor seleccionado: <span style={{color:modeloInfo?.color,fontWeight:600}}>{modeloInfo?.label}</span>
+        </div>
+      </div>
+
+      {/* Modos */}
+      <div>
+        <p className="section-title">Elegí un modo</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
           {MODOS_IA.map(mo=>{
             const tiene=historial[`${materiaId}_${mo.id}`]?.length>0;
-            return <button key={mo.id} onClick={()=>iniciarModo(mo.id)} style={{background:"var(--surface)",border:`1px solid ${tiene?"var(--blue)":"var(--border)"}`,borderRadius:10,padding:"16px",textAlign:"left",transition:"all 0.15s",cursor:"pointer"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.background="var(--blue-dim)";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=tiene?"var(--blue)":"var(--border)";e.currentTarget.style.background="var(--surface)";}}>
-              <div style={{fontFamily:"'Barlow Condensed'",fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:5}}>{mo.label}</div>
-              <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.5}}>{mo.desc}</div>
-              {tiene&&<div style={{fontSize:10,color:"var(--blue)",marginTop:8,fontWeight:500}}>Sesión guardada · Continuar</div>}
-            </button>;
+            return(
+              <button key={mo.id} onClick={()=>iniciarModo(mo.id)} style={{background:"var(--surface)",border:`1px solid ${tiene?"var(--blue)":"var(--border)"}`,borderRadius:10,padding:"16px",textAlign:"left",transition:"all 0.15s",cursor:"pointer"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.background="var(--blue-dim)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=tiene?"var(--blue)":"var(--border)";e.currentTarget.style.background="var(--surface)";}}>
+                <div style={{fontFamily:"'Barlow Condensed'",fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:5}}>{mo.label}</div>
+                <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.5}}>{mo.desc}</div>
+                {tiene&&<div style={{fontSize:10,color:"var(--blue)",marginTop:8,fontWeight:500}}>Sesión guardada · Continuar</div>}
+              </button>
+            );
           })}
         </div>
       </div>
     </div>
   );
 
+  const modoInfo=MODOS_IA.find(m=>m.id===modo);
+  const userMsgs=msgs.filter(m=>m.role==="user").length;
+  const totalMsgs=msgs.length;
+
   return(
     <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",minHeight:400}}>
+      {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
         <button className="btn-ghost" style={{padding:"6px 11px",fontSize:12}} onClick={()=>setModo(null)}><Icon name="chevronL" size={13}/>Volver</button>
-        <div style={{flex:1,minWidth:0}}>
+        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <span style={{fontSize:13,fontWeight:600}}>{materia?.nombre}</span>
-          <span className="tag" style={{background:"var(--blue-dim)",color:"var(--blue)",marginLeft:8}}>{MODOS_IA.find(m=>m.id===modo)?.label}</span>
+          <span className="tag" style={{background:"var(--blue-dim)",color:"var(--blue)"}}>{modoInfo?.label}</span>
+          <span className="tag" style={{background:`${modeloInfo?.color}18`,color:modeloInfo?.color,fontSize:10}}>{modeloInfo?.label}</span>
         </div>
-        <button className="btn-ghost" style={{padding:"6px 10px"}} onClick={()=>{setMsgs([]);const k=`${materiaId}_${modo}`;setHistorial(h=>{const n={...h};delete n[k];return n;});}} title="Limpiar"><Icon name="refresh" size={13}/></button>
+        <button className="btn-ghost" style={{padding:"6px 10px"}} onClick={limpiar} title="Limpiar conversación"><Icon name="refresh" size={13}/></button>
       </div>
+
+      {/* Mensajes */}
       <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingRight:4}}>
         {msgs.length===0&&!loading&&<div style={{textAlign:"center",color:"var(--text2)",fontSize:13,padding:"40px 20px"}}>Iniciando sesión...</div>}
         {msgs.map((m,i)=>(
@@ -699,7 +996,14 @@ if(!modo) return(
         {loading&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{padding:"10px 16px",borderRadius:10,background:"var(--surface2)",border:"1px solid var(--border)",display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=><span key={i} className="pulse" style={{width:7,height:7,borderRadius:"50%",background:"var(--blue)",display:"inline-block",animationDelay:`${i*0.2}s`}}/>)}</div></div>}
         <div ref={bottomRef}/>
       </div>
-      <div style={{marginTop:12,display:"flex",gap:8,alignItems:"flex-end"}}>
+
+      {/* Contador de mensajes */}
+      <div style={{textAlign:"center",fontSize:11,color:"var(--text3)",padding:"6px 0 4px"}}>
+        {totalMsgs} {totalMsgs===1?"mensaje":"mensajes"} en esta sesión
+      </div>
+
+      {/* Input */}
+      <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
         <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();enviar();}}} placeholder="Escribí tu mensaje... (Enter para enviar)" rows={2} style={{flex:1,resize:"none",borderRadius:8,lineHeight:1.5,fontSize:13,padding:"10px 12px"}}/>
         <button className="btn-primary" onClick={enviar} disabled={loading||!input.trim()} style={{padding:"10px 14px",opacity:loading||!input.trim()?0.5:1}}><Icon name="send" size={15} color="#fff"/></button>
       </div>
@@ -718,37 +1022,46 @@ const NAV=[
 ];
 const TITULOS={dashboard:"Dashboard",materias:"Mis Materias",horarios:"Horario Semanal",eventos:"Eventos y Fechas",archivos:"Archivos",asistente:"Asistente IA"};
 
-// ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App(){
+  const isMobile=useIsMobile();
   const [session,setSession]=useState(undefined);
   const [vista,setVista]=useState("dashboard");
-  const [sideOpen,setSideOpen]=useState(true);
+  const [sideOpen,setSideOpen]=useState(!isMobile);
   const [materias,setMaterias]=useState([]);
   const [eventos,setEventos]=useState([]);
   const [loadingData,setLoadingData]=useState(true);
-  useIsMobile();
+  const {toasts,show:showToast}=useToast();
+  const [showNotifs,setShowNotifs]=useState(false);
+  const [iaActiva,setIaActiva]=useState(false); // se carga desde el perfil del usuario
 
-  // Auth listener
+  // Sincronizar sideOpen con isMobile al cambiar tamaño
+  useEffect(()=>{setSideOpen(!isMobile);},[isMobile]);
+
   useEffect(()=>{
     sb.auth.getSession().then(({data:{session}})=>setSession(session));
     const {data:{subscription}}=sb.auth.onAuthStateChange((_,s)=>setSession(s));
-    return ()=>subscription.unsubscribe();
+    return()=>subscription.unsubscribe();
   },[]);
 
-  // Cargar datos cuando hay sesión
   useEffect(()=>{
     if(session) cargarTodo();
-    else {setMaterias([]);setEventos([]);setLoadingData(false);}
+    else{setMaterias([]);setEventos([]);setLoadingData(false);}
   },[session]);
 
   const cargarTodo=async()=>{
     setLoadingData(true);
-    const [{data:m},{data:e}]=await Promise.all([
+    const [{data:m,error:em},{data:e,error:ee}]=await Promise.all([
       sb.from("materias").select("*").order("año").order("cuatrimestre"),
       sb.from("eventos").select("*").order("fecha"),
     ]);
+    if(em) showToast(em.message);
+    if(ee) showToast(ee.message);
     setMaterias(m||[]);
     setEventos(e||[]);
+    // Cargar preferencias del usuario (ia_activa)
+    const {data:perfil}=await sb.from("perfiles").select("ia_activa").eq("id",session.user.id).single();
+    if(perfil) setIaActiva(!!perfil.ia_activa);
     setLoadingData(false);
   };
 
@@ -766,40 +1079,44 @@ export default function App(){
     return()=>URL.revokeObjectURL(url);
   },[]);
 
-  // CRUD materias
+  // CRUD con toast en errores
   const addMateria=async(f)=>{
-    const {data}=await sb.from("materias").insert({...f,user_id:session.user.id,nota:f.nota||null}).select().single();
-    if(data) setMaterias(m=>[...m,data]);
+    const {data,error}=await sb.from("materias").insert({...f,user_id:session.user.id,nota:f.nota||null}).select().single();
+    if(error){showToast(error.message);return;}
+    setMaterias(m=>[...m,data]);
   };
   const editMateria=async(id,f)=>{
-    const {data}=await sb.from("materias").update({...f,nota:f.nota||null}).eq("id",id).select().single();
-    if(data) setMaterias(m=>m.map(x=>x.id===id?data:x));
+    const {data,error}=await sb.from("materias").update({...f,nota:f.nota||null}).eq("id",id).select().single();
+    if(error){showToast(error.message);return;}
+    setMaterias(m=>m.map(x=>x.id===id?data:x));
   };
   const delMateria=async(id)=>{
-    await sb.from("materias").delete().eq("id",id);
+    const {error}=await sb.from("materias").delete().eq("id",id);
+    if(error){showToast(error.message);return;}
     setMaterias(m=>m.filter(x=>x.id!==id));
   };
-
-  // CRUD eventos
   const addEvento=async(f)=>{
-    const {data}=await sb.from("eventos").insert({...f,user_id:session.user.id}).select().single();
-    if(data) setEventos(e=>[...e,data]);
+    const {data,error}=await sb.from("eventos").insert({...f,user_id:session.user.id}).select().single();
+    if(error){showToast(error.message);return;}
+    setEventos(e=>[...e,data]);
   };
   const editEvento=async(id,f)=>{
-    const {data}=await sb.from("eventos").update(f).eq("id",id).select().single();
-    if(data) setEventos(e=>e.map(x=>x.id===id?data:x));
+    const {data,error}=await sb.from("eventos").update(f).eq("id",id).select().single();
+    if(error){showToast(error.message);return;}
+    setEventos(e=>e.map(x=>x.id===id?data:x));
   };
   const delEvento=async(id)=>{
-    await sb.from("eventos").delete().eq("id",id);
+    const {error}=await sb.from("eventos").delete().eq("id",id);
+    if(error){showToast(error.message);return;}
     setEventos(e=>e.filter(x=>x.id!==id));
   };
 
-  if(session===undefined) return <div style={{minHeight:"100vh",background:"#0b0e13",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{G+`@keyframes spin{to{transform:rotate(360deg)}}`}</style><Spinner/></div>;
+  if(session===undefined) return <div style={{minHeight:"100vh",background:"#0b0e13",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{G}</style><Spinner/></div>;
   if(!session) return <AuthPage onAuth={()=>sb.auth.getSession().then(({data:{session}})=>setSession(session))}/>;
 
   return(
     <>
-      <style>{G+`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{G}</style>
       <div style={{display:"flex",minHeight:"100vh"}}>
 
         {/* SIDEBAR */}
@@ -840,15 +1157,24 @@ export default function App(){
             <span className="tag" style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
               <Icon name="signal" size={11} color="var(--blue)"/>En línea
             </span>
+            <button onClick={()=>setShowNotifs(true)} style={{
+              position:"relative",background:"var(--surface2)",border:"1px solid var(--border)",
+              borderRadius:7,padding:"7px 9px",display:"flex",alignItems:"center",cursor:"pointer",
+              transition:"border-color 0.15s",color:"var(--text2)"
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.color="var(--blue)";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)";}}>
+              <Icon name="bell" size={16}/>
+            </button>
           </header>
           <div className="main-pad" style={{flex:1}}>
             {loadingData?<Spinner/>:<>
-              {vista==="dashboard" &&<Dashboard materias={materias} eventos={eventos}/>}
+              {vista==="dashboard" &&<Dashboard  materias={materias} eventos={eventos}/>}
               {vista==="materias"  &&<VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria}/>}
               {vista==="horarios"  &&<VistaHorarios materias={materias}/>}
-              {vista==="eventos"   &&<VistaEventos materias={materias} eventos={eventos} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento}/>}
-              {vista==="archivos"  &&<VistaArchivos materias={materias} userId={session.user.id}/>}
-              {vista==="asistente" &&<VistaAsistente materias={materias} eventos={eventos}/>}
+              {vista==="eventos"   &&<VistaEventos  materias={materias} eventos={eventos} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento}/>}
+              {vista==="archivos"  &&<VistaArchivos materias={materias} userId={session.user.id} showToast={showToast}/>}
+              {vista==="asistente" &&(iaActiva?<VistaAsistente materias={materias} eventos={eventos}/>:<BloqueadoIA/>)}
             </>}
           </div>
         </main>
@@ -863,6 +1189,11 @@ export default function App(){
           </button>
         );})}
       </nav>
+
+      {/* TOASTS */}
+      <ToastContainer toasts={toasts}/>
+      {/* PANEL NOTIFICACIONES */}
+      {showNotifs&&<PanelNotificaciones materias={materias} eventos={eventos} onClose={()=>setShowNotifs(false)}/>}
     </>
   );
 }
