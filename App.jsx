@@ -507,12 +507,14 @@ function VistaArchivos({materias,userId}){
     setLoading(false);
   };
 
-  const subir=async(files)=>{
+const subir=async(files)=>{
     setUploading(true);
     for(const file of Array.from(files)){
       const path=`${userId}/${Date.now()}_${file.name}`;
-      const {error:upErr}=await sb.storage.from("archivos").upload(path,file);
-      if(!upErr){
+      const reader=new FileReader();
+      const fileBase64=await new Promise(r=>{reader.onload=()=>r(reader.result.split(",")[1]);reader.readAsDataURL(file);});
+      const res=await fetch("/api/upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path,contentType:file.type,fileBase64})});
+      if(res.ok){
         const matId=fm==="all"?(materias[0]?.id||null):fm;
         await sb.from("archivos").insert({user_id:userId,materia_id:matId,nombre:file.name,tipo:file.name.split(".").pop().toUpperCase(),tamaño:file.size,storage_path:path});
       }
@@ -521,16 +523,15 @@ function VistaArchivos({materias,userId}){
     setUploading(false);
   };
 
-  const eliminar=async(a)=>{
-    if(a.storage_path) await sb.storage.from("archivos").remove([a.storage_path]);
+const eliminar=async(a)=>{
     await sb.from("archivos").delete().eq("id",a.id);
     setArchivos(prev=>prev.filter(x=>x.id!==a.id));
   };
-
-  const descargar=async(a)=>{
+const descargar=async(a)=>{
     if(!a.storage_path) return;
-    const {data}=await sb.storage.from("archivos").createSignedUrl(a.storage_path,60);
-    if(data?.signedUrl) window.open(data.signedUrl,"_blank");
+    const res=await fetch("/api/download",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:a.storage_path})});
+    const data=await res.json();
+    if(data.url) window.open(data.url,"_blank");
   };
 
   const fil=fm==="all"?archivos:archivos.filter(a=>a.materia_id===fm);
