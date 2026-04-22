@@ -311,8 +311,7 @@ function Modal({title,onClose,children,width=520}){
     return()=>window.removeEventListener("keydown",fn);
   },[onClose]);
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
-      onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,paddingTop:"4vh",overflowY:"auto"}}      onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div ref={innerRef} className="card fade-in" style={{
         width:"100%",maxWidth:width,
         maxHeight:"calc(100vh - 48px)",
