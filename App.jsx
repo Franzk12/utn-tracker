@@ -591,7 +591,7 @@ function VistaAsistente({materias,eventos}){
   const [loading,setLoading]=useState(false);
   const bottomRef=useRef(null);
   const materia=materias.find(m=>m.id===materiaId);
-
+  const [modelo,setModelo]=useState(()=>localStorage.getItem("utn_modelo")||"gemini");
   useEffect(()=>{if(materiaId&&modo){const k=`${materiaId}_${modo}`;setMsgs(historial[k]||[]);}},[materiaId,modo]);
   useEffect(()=>{if(materiaId&&modo&&msgs.length>0){const k=`${materiaId}_${modo}`;setHistorial(h=>({...h,[k]:msgs.slice(-40)}));}},[msgs]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[msgs,loading]);
@@ -613,9 +613,9 @@ function VistaAsistente({materias,eventos}){
     if(historial[k]?.length>0){setMsgs(historial[k]);return;}
     setMsgs([]);setLoading(true);
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,system:mkSystem(m),messages:[{role:"user",content:"Hola, empecemos."}]})});
+      cconst res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:mkSystem(m),messages:[{role:"user",content:"Hola, empecemos."}],modelo})});
       const data=await res.json();
-      setMsgs([{role:"assistant",content:data.content?.[0]?.text||"Hola, ¿en qué puedo ayudarte?"}]);
+      setMsgs([{role:"assistant",content:data.text||"Hola, ¿en qué puedo ayudarte?"}]);
     }catch{setMsgs([{role:"assistant",content:"Hola, estoy listo. ¿En qué te puedo ayudar?"}]);}
     setLoading(false);
   };
@@ -626,9 +626,9 @@ function VistaAsistente({materias,eventos}){
     const newMsgs=[...msgs,userMsg];
     setMsgs(newMsgs);setInput("");setLoading(true);
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:mkSystem(modo),messages:newMsgs.map(m=>({role:m.role,content:m.content}))})});
+     const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:mkSystem(modo),messages:newMsgs.map(m=>({role:m.role,content:m.content})),modelo})});
       const data=await res.json();
-      setMsgs(m=>[...m,{role:"assistant",content:data.content?.[0]?.text||"No pude responder."}]);
+      setMsgs(m=>[...m,{role:"assistant",content:data.text||"No pude responder."}]);
     }catch{setMsgs(m=>[...m,{role:"assistant",content:"Error de conexión."}]);}
     setLoading(false);
   };
