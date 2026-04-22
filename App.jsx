@@ -613,7 +613,7 @@ function VistaAsistente({materias,eventos}){
     if(historial[k]?.length>0){setMsgs(historial[k]);return;}
     setMsgs([]);setLoading(true);
     try{
-      cconst res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:mkSystem(m),messages:[{role:"user",content:"Hola, empecemos."}],modelo})});
+      const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:mkSystem(m),messages:[{role:"user",content:"Hola, empecemos."}],modelo})});
       const data=await res.json();
       setMsgs([{role:"assistant",content:data.text||"Hola, ¿en qué puedo ayudarte?"}]);
     }catch{setMsgs([{role:"assistant",content:"Hola, estoy listo. ¿En qué te puedo ayudar?"}]);}
