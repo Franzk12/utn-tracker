@@ -633,8 +633,25 @@ function VistaAsistente({materias,eventos}){
     setLoading(false);
   };
 
-  if(!modo) return(
+const MODELOS=[
+  {id:"claude",label:"Claude Sonnet",color:"#c96442"},
+  {id:"gpt",label:"GPT-4o mini",color:"#10a37f"},
+  {id:"gemini",label:"Gemini Flash",color:"#4285f4"},
+];
+
+if(!modo) return(
     <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:20}}>
+      <div>
+        <Lbl>Motor de IA</Lbl>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {MODELOS.map(mo=>(
+            <button key={mo.id} onClick={()=>{setModelo(mo.id);localStorage.setItem("utn_modelo",mo.id);}}
+              style={{padding:"6px 14px",borderRadius:6,fontSize:12,fontWeight:600,border:`1px solid ${modelo===mo.id?mo.color:"var(--border)"}`,background:modelo===mo.id?`${mo.color}18`:"transparent",color:modelo===mo.id?mo.color:"var(--text2)",transition:"all 0.15s"}}>
+              {mo.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div><Lbl>Seleccioná una materia</Lbl>
         <select style={{width:"100%",maxWidth:420}} value={materiaId||""} onChange={e=>setMateriaId(e.target.value)}>
           {materias.map(m=><option key={m.id} value={m.id}>{m.nombre} ({ESTADOS[m.estado]?.label})</option>)}
