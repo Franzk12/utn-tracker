@@ -16,7 +16,7 @@ const ESTADOS = {
   pendiente:      { label:"Pendiente",        color:"#475569", bg:"rgba(71,85,105,0.15)"  },
 };
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-const HORAS       = Array.from({length:14},(_,i)=>`${String(i+7).padStart(2,"0")}:00`);
+const HORAS = ["12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00","22:30"];
 const TIPO_EVENTO = {
   parcial:{label:"Parcial",color:"#60a5fa"},
   final:  {label:"Final",  color:"#f87171"},
