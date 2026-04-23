@@ -737,24 +737,59 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
   );
 }
 
-// ─── ARCHIVOS (R2) ────────────────────────────────────────────────────────────
+// ─── ARCHIVOS (R2 + CARPETAS) ─────────────────────────────────────────────────
 function VistaArchivos({materias,userId,showToast}){
-  const [archivos,setArchivos]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fm,setFm]=useState("all");
-  const [drag,setDrag]=useState(false);
-  const [uploading,setUploading]=useState(false);
-  const [uploadProgress,setUploadProgress]=useState(""); // nombre del archivo subiendo
-  const [confirm,setConfirm]=useState(null);
+  const [archivos,setArchivos]   = useState([]);
+  const [carpetas,setCarpetas]   = useState([]);
+  const [loading,setLoading]     = useState(true);
+  const [carpetaActual,setCarpetaActual] = useState(null); // null = raíz
+  const [fm,setFm]               = useState("all");
+  const [drag,setDrag]           = useState(false);
+  const [uploading,setUploading] = useState(false);
+  const [uploadProgress,setUploadProgress] = useState("");
+  const [confirm,setConfirm]     = useState(null);
+  const [nuevaCarpeta,setNuevaCarpeta] = useState(false);
+  const [nombreCarpeta,setNombreCarpeta] = useState("");
+  const [confirmCarpeta,setConfirmCarpeta] = useState(null);
 
-  useEffect(()=>{cargar();},[]);
+  useEffect(()=>{ cargar(); },[]);
 
   const cargar=async()=>{
     setLoading(true);
-    const {data,error}=await sb.from("archivos").select("*").order("created_at",{ascending:false});
-    if(error) showToast(error.message);
-    setArchivos(data||[]);
+    const [{data:a,error:ea},{data:c,error:ec}]=await Promise.all([
+      sb.from("archivos").select("*").order("created_at",{ascending:false}),
+      sb.from("carpetas").select("*").order("nombre"),
+    ]);
+    if(ea) showToast(ea.message);
+    if(ec) showToast(ec.message);
+    setArchivos(a||[]);
+    setCarpetas(c||[]);
     setLoading(false);
+  };
+
+  const crearCarpeta=async()=>{
+    if(!nombreCarpeta.trim()) return;
+    const {data,error}=await sb.from("carpetas").insert({user_id:userId,nombre:nombreCarpeta.trim()}).select().single();
+    if(error){showToast(error.message);return;}
+    setCarpetas(cs=>[...cs,data]);
+    setNombreCarpeta("");
+    setNuevaCarpeta(false);
+  };
+
+  const eliminarCarpeta=async(c)=>{
+    // Mover archivos de esta carpeta a raíz
+    await sb.from("archivos").update({carpeta_id:null}).eq("carpeta_id",c.id);
+    const {error}=await sb.from("carpetas").delete().eq("id",c.id);
+    if(error){showToast(error.message);return;}
+    setCarpetas(cs=>cs.filter(x=>x.id!==c.id));
+    if(carpetaActual===c.id) setCarpetaActual(null);
+    await cargar();
+  };
+
+  const moverArchivo=async(archivoId,carpetaId)=>{
+    const {error}=await sb.from("archivos").update({carpeta_id:carpetaId}).eq("id",archivoId);
+    if(error){showToast(error.message);return;}
+    setArchivos(as=>as.map(a=>a.id===archivoId?{...a,carpeta_id:carpetaId}:a));
   };
 
   const subir=async(files)=>{
@@ -762,7 +797,6 @@ function VistaArchivos({materias,userId,showToast}){
     for(const file of Array.from(files)){
       setUploadProgress(file.name);
       try{
-        // 1. Subir a R2 via endpoint
         const res=await fetch("/api/upload",{
           method:"POST",
           headers:{
@@ -774,16 +808,15 @@ function VistaArchivos({materias,userId,showToast}){
         });
         const data=await res.json();
         if(data.error){showToast(data.error);continue;}
-
-        // 2. Guardar metadatos en Supabase
         const matId=fm==="all"?(materias[0]?.id||null):fm;
         const {error:dbErr}=await sb.from("archivos").insert({
           user_id:userId,
           materia_id:matId,
+          carpeta_id:carpetaActual,
           nombre:file.name,
           tipo:file.name.split(".").pop().toUpperCase(),
           tamaño:file.size,
-          storage_path:data.key, // clave R2
+          storage_path:data.key,
         });
         if(dbErr) showToast(dbErr.message);
       }catch(e){showToast(`Error subiendo ${file.name}: ${e.message}`);}
@@ -794,13 +827,10 @@ function VistaArchivos({materias,userId,showToast}){
   };
 
   const eliminar=async(a)=>{
-    // Eliminar de R2
     if(a.storage_path){
-      try{
-        await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`,{method:"DELETE"});
-      }catch(e){showToast(`No se pudo eliminar el archivo físico: ${e.message}`);}
+      try{ await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`,{method:"DELETE"}); }
+      catch(e){showToast(`No se pudo eliminar el archivo físico: ${e.message}`);}
     }
-    // Eliminar metadatos de Supabase
     const {error}=await sb.from("archivos").delete().eq("id",a.id);
     if(error){showToast(error.message);return;}
     setArchivos(prev=>prev.filter(x=>x.id!==a.id));
@@ -816,52 +846,145 @@ function VistaArchivos({materias,userId,showToast}){
     }catch(e){showToast(e.message);}
   };
 
-  const fil=fm==="all"?archivos:archivos.filter(a=>a.materia_id===fm);
+  // Filtrar por materia y carpeta actual
+  const archivosFiltrados = archivos.filter(a=>{
+    const matchMat = fm==="all" || a.materia_id===fm;
+    const matchCarpeta = carpetaActual===null ? !a.carpeta_id : a.carpeta_id===carpetaActual;
+    return matchMat && matchCarpeta;
+  });
+
   const fT=b=>b>1e6?`${(b/1e6).toFixed(1)} MB`:b>1e3?`${(b/1e3).toFixed(0)} KB`:`${b} B`;
   const tC=t=>({PDF:"var(--red)",DOCX:"var(--blue)",DOC:"var(--blue)",XLSX:"var(--green)",PPTX:"var(--slate)",PNG:"var(--slate)",JPG:"var(--slate)"})[t]||"var(--text2)";
 
   if(loading) return <Spinner/>;
   return(
     <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
+
+      {/* Barra superior */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <select value={fm} onChange={e=>setFm(e.target.value)} style={{flex:1,minWidth:180}}>
+        <select value={fm} onChange={e=>setFm(e.target.value)} style={{flex:1,minWidth:160}}>
           <option value="all">Todas las materias</option>
           {materias.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}
         </select>
+        <button className="btn-ghost" style={{padding:"7px 12px",fontSize:13}} onClick={()=>setNuevaCarpeta(true)}>
+          <Icon name="plus" size={13}/>Carpeta
+        </button>
         <label className="btn-primary" style={{cursor:uploading?"wait":"pointer",opacity:uploading?0.7:1}}>
           <Icon name="upload" size={14} color="#fff"/>
-          {uploading ? (uploadProgress?`Subiendo ${uploadProgress.slice(0,20)}${uploadProgress.length>20?"…":""}...`:"Subiendo...") : "Subir"}
+          {uploading?(uploadProgress?`${uploadProgress.slice(0,16)}${uploadProgress.length>16?"…":""}...`:"Subiendo..."):"Subir"}
           <input type="file" multiple style={{display:"none"}} onChange={e=>subir(e.target.files)} disabled={uploading}/>
         </label>
       </div>
+
+      {/* Breadcrumb / navegación */}
+      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+        <button onClick={()=>setCarpetaActual(null)} style={{
+          background:carpetaActual===null?"var(--blue-dim)":"transparent",
+          border:`1px solid ${carpetaActual===null?"var(--blue)":"var(--border)"}`,
+          color:carpetaActual===null?"var(--blue)":"var(--text2)",
+          padding:"4px 12px",borderRadius:5,fontSize:12,cursor:"pointer",transition:"all 0.15s"
+        }}>Raíz</button>
+        {carpetaActual&&<>
+          <span style={{color:"var(--text3)",fontSize:12}}>›</span>
+          <span style={{background:"var(--blue-dim)",border:"1px solid var(--blue)",color:"var(--blue)",padding:"4px 12px",borderRadius:5,fontSize:12}}>
+            {carpetas.find(c=>c.id===carpetaActual)?.nombre}
+          </span>
+        </>}
+      </div>
+
+      {/* Carpetas (solo en raíz) */}
+      {carpetaActual===null && carpetas.length>0 && (
+        <div>
+          <p className="section-title">Carpetas</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
+            {carpetas.map(c=>{
+              const count=archivos.filter(a=>a.carpeta_id===c.id).length;
+              return(
+                <div key={c.id} className="card" style={{padding:"12px 14px",cursor:"pointer",transition:"border-color 0.15s",display:"flex",alignItems:"center",gap:10}}
+                  onClick={()=>setCarpetaActual(c.id)}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
+                  <div style={{fontSize:20,flexShrink:0}}>📁</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.nombre}</div>
+                    <div style={{fontSize:11,color:"var(--text2)",marginTop:1}}>{count} archivo{count!==1?"s":""}</div>
+                  </div>
+                  <button className="btn-danger" style={{padding:"4px 7px",flexShrink:0}} onClick={e=>{e.stopPropagation();setConfirmCarpeta(c);}}>
+                    <Icon name="trash" size={12}/>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Drop zone */}
       <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
         onDrop={e=>{e.preventDefault();setDrag(false);subir(e.dataTransfer.files);}}
-        style={{border:`1px dashed ${drag?"var(--blue)":"var(--border)"}`,borderRadius:10,padding:"20px",textAlign:"center",background:drag?"var(--blue-dim)":"var(--surface)",transition:"all 0.2s",color:"var(--text2)",fontSize:13}}>
-        {drag?"Soltar archivos aquí":"O arrastrar archivos aquí"}
+        style={{border:`1px dashed ${drag?"var(--blue)":"var(--border)"}`,borderRadius:10,padding:"18px",textAlign:"center",background:drag?"var(--blue-dim)":"var(--surface)",transition:"all 0.2s",color:"var(--text2)",fontSize:13}}>
+        {drag?"Soltar archivos aquí":`Arrastrar archivos aquí${carpetaActual?" — se subirán a esta carpeta":""}`}
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {fil.length===0?<div className="card" style={{padding:20,textAlign:"center",color:"var(--text2)",fontSize:13}}>Sin archivos{fm!=="all"?" para esta materia":""}</div>:fil.map(a=>{
-          const mat=materias.find(m=>m.id===a.materia_id);
-          return(
-            <div key={a.id} className="card" style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:11}}>
-              <span style={{fontFamily:"'DM Mono'",fontSize:10,fontWeight:600,color:tC(a.tipo),background:`${tC(a.tipo)}15`,padding:"3px 6px",borderRadius:4,flexShrink:0}}>{a.tipo}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre}</div>
-                <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:9,marginTop:2,flexWrap:"wrap"}}>
-                  {mat&&<span>{mat.nombre}</span>}
-                  {a.tamaño&&<span>{fT(a.tamaño)}</span>}
-                  <span>{new Date(a.created_at).toLocaleDateString("es-AR")}</span>
+
+      {/* Archivos */}
+      <div>
+        {archivosFiltrados.length>0&&<p className="section-title">Archivos ({archivosFiltrados.length})</p>}
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {archivosFiltrados.length===0?(
+            <div className="card" style={{padding:20,textAlign:"center",color:"var(--text2)",fontSize:13}}>
+              Sin archivos {carpetaActual?"en esta carpeta":"en raíz"}
+            </div>
+          ):archivosFiltrados.map(a=>{
+            const mat=materias.find(m=>m.id===a.materia_id);
+            return(
+              <div key={a.id} className="card" style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:11}}>
+                <span style={{fontFamily:"'DM Mono'",fontSize:10,fontWeight:600,color:tC(a.tipo),background:`${tC(a.tipo)}15`,padding:"3px 6px",borderRadius:4,flexShrink:0}}>{a.tipo}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre}</div>
+                  <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:9,marginTop:2,flexWrap:"wrap"}}>
+                    {mat&&<span>{mat.nombre}</span>}
+                    {a.tamaño&&<span>{fT(a.tamaño)}</span>}
+                    <span>{new Date(a.created_at).toLocaleDateString("es-AR")}</span>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:5,flexShrink:0}}>
+                  {/* Mover a carpeta */}
+                  {carpetas.length>0&&(
+                    <select value={a.carpeta_id||""} onChange={e=>moverArchivo(a.id,e.target.value||null)}
+                      style={{fontSize:11,padding:"4px 6px",minWidth:0,maxWidth:110,borderRadius:5}}
+                      onClick={e=>e.stopPropagation()}>
+                      <option value="">Raíz</option>
+                      {carpetas.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  )}
+                  {a.storage_path&&<button className="btn-ghost" style={{padding:"5px 9px",fontSize:12}} onClick={()=>descargar(a)}>Descargar</button>}
+                  <button className="btn-danger" onClick={()=>setConfirm({archivo:a,nombre:a.nombre})}><Icon name="trash" size={13}/></button>
                 </div>
               </div>
-              <div style={{display:"flex",gap:5}}>
-                {a.storage_path&&<button className="btn-ghost" style={{padding:"5px 9px",fontSize:12}} onClick={()=>descargar(a)}>Descargar</button>}
-                <button className="btn-danger" onClick={()=>setConfirm({archivo:a,nombre:a.nombre})}><Icon name="trash" size={13}/></button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
+
+      {/* Modal nueva carpeta */}
+      {nuevaCarpeta&&(
+        <Modal title="Nueva carpeta" onClose={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div>
+              <Lbl>Nombre de la carpeta</Lbl>
+              <input style={{width:"100%"}} value={nombreCarpeta} onChange={e=>setNombreCarpeta(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&crearCarpeta()} placeholder="Ej: Análisis II — Parciales"/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-primary" style={{flex:1}} onClick={crearCarpeta}>Crear carpeta</button>
+              <button className="btn-ghost" onClick={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>Cancelar</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
+      {confirmCarpeta&&<ConfirmModal nombre={`carpeta "${confirmCarpeta.nombre}"`} onClose={()=>setConfirmCarpeta(null)} onConfirm={()=>{eliminarCarpeta(confirmCarpeta);setConfirmCarpeta(null);}}/>}
     </div>
   );
 }
