@@ -161,7 +161,7 @@ function useNotificaciones(materias, eventos) {
         id:"hoy",
         tipo:"info",
         titulo:`${matHoy.length} ${matHoy.length===1?"materia":"materias"} hoy`,
-        detalle: matHoy.map(m=>`${m.horario} · ${m.nombre}`).join(" / "),
+        detalle: matHoy.map(m=>`${m.horarios?.[dHoy]||m.horario||""} · ${m.nombre}`).join(" / "),
         icon:"horarios",
       });
     }
@@ -474,9 +474,13 @@ function Dashboard({materias,eventos}){
         <p className="section-title">Hoy — {dHoy}</p>
         {matHoy.length===0?<div className="card" style={{padding:14,color:"var(--text2)",fontSize:13}}>No hay clases cargadas para hoy</div>:(
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {matHoy.map(m=>{const est=ESTADOS[m.estado];return(
+            {matHoy.sort((a,b)=>{
+              const ha=a.horarios?.[dHoy]||a.horario||"";
+              const hb=b.horarios?.[dHoy]||b.horario||"";
+              return ha.localeCompare(hb);
+            }).map(m=>{const est=ESTADOS[m.estado];const horHoy=m.horarios?.[dHoy]||m.horario||"";return(
               <div key={m.id} className="card" style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:11}}>
-                <span style={{fontFamily:"'DM Mono'",fontSize:12,color:"var(--blue)",minWidth:44}}>{m.horario}</span>
+                <span style={{fontFamily:"'DM Mono'",fontSize:12,color:"var(--blue)",minWidth:44}}>{horHoy}</span>
                 <span style={{flex:1,fontSize:13,fontWeight:500}}>{m.nombre}</span>
                 <span style={{fontSize:11,color:"var(--text2)"}}>Aula {m.aula}</span>
                 <span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>
@@ -491,10 +495,33 @@ function Dashboard({materias,eventos}){
 
 // ─── MATERIAS ─────────────────────────────────────────────────────────────────
 function FormMateria({initial,onSave,onClose}){
-  const [f,setF]=useState(initial||{nombre:"",año:1,cuatrimestre:1,estado:"pendiente",nota:"",hs:4,dias:[],horario:"08:00",aula:""});
+  const [f,setF]=useState(()=>{
+    const base=initial||{nombre:"",año:1,cuatrimestre:1,estado:"pendiente",nota:"",hs:4,dias:[],horarios:{},aula:""};
+    // compatibilidad con datos viejos que tienen campo horario plano
+    if(initial&&initial.horario&&!initial.horarios){
+      const h={};
+      (initial.dias||[]).forEach(d=>{ h[d]=initial.horario; });
+      return {...base, horarios:h};
+    }
+    return {...base, horarios: base.horarios||{}};
+  });
   const [errs,setErrs]=useState({});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  const tD=d=>s("dias",f.dias?.includes(d)?f.dias.filter(x=>x!==d):[...(f.dias||[]),d]);
+
+  const tD=d=>{
+    const diasActuales=f.dias||[];
+    if(diasActuales.includes(d)){
+      const nuevosDias=diasActuales.filter(x=>x!==d);
+      const nuevosHorarios={...f.horarios};
+      delete nuevosHorarios[d];
+      setF(p=>({...p,dias:nuevosDias,horarios:nuevosHorarios}));
+    } else {
+      setF(p=>({...p,dias:[...diasActuales,d],horarios:{...p.horarios,[d]:HORAS[4]}}));
+    }
+  };
+
+  const setHorarioDia=(dia,hora)=>setF(p=>({...p,horarios:{...p.horarios,[dia]:hora}}));
+
   const nN=["aprobada_final","promocionada","regular"].includes(f.estado);
 
   const validar=()=>{
@@ -528,17 +555,37 @@ function FormMateria({initial,onSave,onClose}){
           {errs.nota&&<div className="field-error">{errs.nota}</div>}
         </div>}
       </div>
+
+      {/* Días con horario individual */}
       <div>
-        <Lbl>Días de cursado</Lbl>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        <Lbl>Días y horarios de cursado</Lbl>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
           {DIAS_SEMANA.map(d=>(
-            <button key={d} onClick={()=>tD(d)} style={{padding:"5px 10px",borderRadius:5,fontSize:12,border:`1px solid ${f.dias?.includes(d)?"var(--blue)":"var(--border)"}`,background:f.dias?.includes(d)?"var(--blue-dim)":"transparent",color:f.dias?.includes(d)?"var(--blue)":"var(--text2)",transition:"all 0.15s"}}>{d}</button>
+            <button key={d} onClick={()=>tD(d)} style={{padding:"5px 10px",borderRadius:5,fontSize:12,
+              border:`1px solid ${f.dias?.includes(d)?"var(--blue)":"var(--border)"}`,
+              background:f.dias?.includes(d)?"var(--blue-dim)":"transparent",
+              color:f.dias?.includes(d)?"var(--blue)":"var(--text2)",transition:"all 0.15s"}}>{d}</button>
           ))}
         </div>
+        {/* Selector de hora por día seleccionado */}
+        {f.dias?.length>0&&(
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {f.dias.map(d=>(
+              <div key={d} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface2)",borderRadius:7,padding:"8px 12px"}}>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--blue)",minWidth:80}}>{d}</span>
+                <select value={f.horarios?.[d]||HORAS[4]} onChange={e=>setHorarioDia(d,e.target.value)}
+                  style={{flex:1,fontSize:12,padding:"5px 8px"}}>
+                  {HORAS.map(h=><option key={h}>{h}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-        <div><Lbl>Horario</Lbl><select style={{width:"100%"}} value={f.horario} onChange={e=>s("horario",e.target.value)}>{HORAS.map(h=><option key={h}>{h}</option>)}</select></div>
-        <div><Lbl>Aula</Lbl><input style={{width:"100%"}} value={f.aula} onChange={e=>s("aula",e.target.value)} placeholder="Ej: Lab1"/></div>
+
+      <div>
+        <Lbl>Aula</Lbl>
+        <input style={{width:"100%"}} value={f.aula} onChange={e=>s("aula",e.target.value)} placeholder="Ej: Lab1"/>
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}>
         <button className="btn-primary" style={{flex:1}} onClick={()=>{if(validar())onSave(f);}}>{initial?"Guardar cambios":"Agregar materia"}</button>
@@ -587,7 +634,7 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
                 </div>
                 <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:10,flexWrap:"wrap"}}>
                   <span>Año {m.año} · {m.cuatrimestre}° cuat.</span>
-                  {m.dias?.length>0&&<span>{m.dias.join(", ")} · {m.horario}</span>}
+                  {m.dias?.length>0&&<span>{m.dias.map(d=>`${d} ${m.horarios?.[d]||m.horario||""}`).join(", ")}</span>}
                   {m.aula&&<span>Aula: {m.aula}</span>}
                   <span>{m.hs} hs/sem</span>
                 </div>
@@ -610,12 +657,22 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
 // ─── HORARIOS ─────────────────────────────────────────────────────────────────
 function VistaHorarios({materias}){
   const cur=materias.filter(m=>["cursando","regular"].includes(m.estado)&&m.dias?.length>0);
-  // Mostrar solo las horas que tienen al menos una materia, o todas si no hay ninguna
-  const horasConClases=HORAS.filter(h=>DIAS_SEMANA.some(d=>cur.some(m=>m.horario===h&&m.dias.includes(d))));
+
+  // Construir lista de entradas (materia, dia, hora) usando horarios por día
+  const entradas=cur.flatMap(m=>
+    (m.dias||[]).map(dia=>({
+      materia:m,
+      dia,
+      hora: m.horarios?.[dia] || m.horario || "12:00"
+    }))
+  );
+
+  const horasConClases=[...new Set(entradas.map(e=>e.hora))].sort();
   const horasAMostrar=horasConClases.length>0?HORAS.filter(h=>{
     const idx=HORAS.indexOf(h);
-    const min=Math.max(0,Math.min(...horasConClases.map(x=>HORAS.indexOf(x)))-1);
-    const max=Math.min(HORAS.length-1,Math.max(...horasConClases.map(x=>HORAS.indexOf(x)))+1);
+    const indices=horasConClases.map(x=>HORAS.indexOf(x)).filter(x=>x>=0);
+    const min=Math.max(0,Math.min(...indices)-1);
+    const max=Math.min(HORAS.length-1,Math.max(...indices)+1);
     return idx>=min&&idx<=max;
   }):HORAS;
   return(
@@ -631,7 +688,8 @@ function VistaHorarios({materias}){
               <div key={hora} style={{display:"grid",gridTemplateColumns:"60px repeat(6,1fr)",gap:2,marginBottom:2}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:8,fontFamily:"'DM Mono'",fontSize:10,color:ok?"var(--blue)":"var(--text3)"}}>{hora}</div>
                 {DIAS_SEMANA.map(dia=>{
-                  const m=cur.find(x=>x.horario===hora&&x.dias.includes(dia));
+                  const entrada=entradas.find(e=>e.hora===hora&&e.dia===dia);
+                  const m=entrada?.materia;
                   const est=m?ESTADOS[m.estado]:null;
                   return <div key={dia} style={{background:m?est.bg:"var(--surface)",minHeight:36,border:`1px solid ${m?est.color+"33":"var(--border)"}`,borderRadius:5,padding:m?"6px 8px":"3px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
                     {m&&<><span style={{fontSize:10,fontWeight:600,color:est.color,lineHeight:1.3}}>{m.nombre.length>22?m.nombre.slice(0,22)+"…":m.nombre}</span><span style={{fontSize:9,color:"var(--text2)",marginTop:1}}>Aula {m.aula}</span></>}
@@ -647,6 +705,156 @@ function VistaHorarios({materias}){
           {Object.entries(ESTADOS).filter(([k])=>["cursando","regular"].includes(k)).map(([k,v])=><span key={k} className="tag" style={{background:v.bg,color:v.color}}>{v.label}</span>)}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── IMPORTADOR IA ────────────────────────────────────────────────────────────
+function ImportadorIA({ materias, onImportar, onClose }) {
+  const [texto, setTexto]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resultado, setResultado] = useState(null); // array de eventos parseados
+  const [seleccionados, setSeleccionados] = useState([]);
+  const [err, setErr]         = useState("");
+
+  const parsear = async () => {
+    if (!texto.trim()) return;
+    setLoading(true); setErr(""); setResultado(null);
+    const hoy = new Date().toISOString().split("T")[0];
+    const listaMaterias = materias.map(m => `- ${m.nombre} (id: ${m.id})`).join("\n");
+    const system = `Sos un parser de calendarios académicos universitarios argentinos. Tu única función es extraer eventos del texto que te dan y devolver un JSON válido. No expliques nada, no agregues texto, solo devolvé el JSON.
+
+Materias disponibles:
+${listaMaterias}
+
+Hoy es ${hoy}. El año actual es ${new Date().getFullYear()}.
+
+Devolvé SOLO un array JSON con este formato exacto, sin texto adicional:
+[
+  {
+    "titulo": "nombre del evento",
+    "tipo": "parcial|final|tp|otro",
+    "fecha": "YYYY-MM-DD",
+    "hora": "HH:MM",
+    "descripcion": "temas o info adicional",
+    "materia_id": "uuid de la materia o null si no se puede determinar"
+  }
+]
+
+Reglas:
+- Si no podés determinar la materia, poné materia_id: null
+- Si no hay hora, poné "09:00"
+- Solo devolvé eventos con fecha válida
+- Interpretá "primer parcial", "1er parcial", "parcial 1" como tipo "parcial"
+- Interpretá "final", "examen final" como tipo "final"
+- Interpretá "TP", "trabajo práctico" como tipo "tp"`;
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system,
+          messages: [{ role: "user", content: texto }],
+          modelo: "claude",
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const txt = data.text.trim();
+      const clean = txt.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("No se encontraron eventos en el texto");
+      setResultado(parsed);
+      setSeleccionados(parsed.map((_, i) => i));
+    } catch (e) {
+      setErr(`No se pudo parsear: ${e.message}`);
+    }
+    setLoading(false);
+  };
+
+  const toggleSel = i => setSeleccionados(s => s.includes(i) ? s.filter(x => x !== i) : [...s, i]);
+
+  const confirmar = () => {
+    const evs = seleccionados.map(i => resultado[i]);
+    onImportar(evs);
+    onClose();
+  };
+
+  const tipoColor = t => TIPO_EVENTO[t]?.color || "var(--text2)";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {!resultado ? <>
+        <div>
+          <Lbl>Pegá el texto del SIU, calendario o cualquier texto con fechas académicas</Lbl>
+          <textarea
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            rows={8}
+            style={{ width: "100%", resize: "vertical", fontSize: 13, lineHeight: 1.5, padding: "10px 12px", borderRadius: 7 }}
+            placeholder={`Ejemplos de lo que podés pegar:\n\n• "1er Parcial Análisis II: 15/05 a las 14hs - Temas: integrales"\n• Texto copiado del SIU con fechas de finales\n• El calendario del cuatrimestre copiado de la web\n• Cualquier texto con fechas y materias`}
+          />
+        </div>
+        {err && <div style={{ fontSize: 12, color: "var(--red)", background: "rgba(192,80,77,0.1)", padding: "8px 12px", borderRadius: 6 }}>{err}</div>}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn-primary" style={{ flex: 1, justifyContent: "center", opacity: loading || !texto.trim() ? 0.6 : 1 }}
+            onClick={parsear} disabled={loading || !texto.trim()}>
+            {loading ? <>
+              <span className="pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
+              Analizando...
+            </> : "Analizar texto"}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        </div>
+      </> : <>
+        <div>
+          <p className="section-title">Eventos detectados — seleccioná los que querés importar</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {resultado.map((ev, i) => {
+              const mat = materias.find(m => m.id === ev.materia_id);
+              const sel = seleccionados.includes(i);
+              return (
+                <div key={i} onClick={() => toggleSel(i)} style={{
+                  padding: "11px 14px", borderRadius: 8, cursor: "pointer",
+                  border: `1px solid ${sel ? tipoColor(ev.tipo) : "var(--border)"}`,
+                  background: sel ? `${tipoColor(ev.tipo)}0e` : "var(--surface2)",
+                  display: "flex", alignItems: "center", gap: 12, transition: "all 0.15s"
+                }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                    border: `2px solid ${sel ? tipoColor(ev.tipo) : "var(--border)"}`,
+                    background: sel ? tipoColor(ev.tipo) : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                  }}>
+                    {sel && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{ev.titulo}</span>
+                      <span className="tag" style={{ background: `${tipoColor(ev.tipo)}18`, color: tipoColor(ev.tipo) }}>
+                        {TIPO_EVENTO[ev.tipo]?.label || ev.tipo}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <span>{ev.fecha} · {ev.hora}</span>
+                      {mat ? <span style={{ color: "var(--blue)" }}>{mat.nombre}</span> : <span style={{ color: "var(--red)" }}>Sin materia asignada</span>}
+                      {ev.descripcion && <span>{ev.descripcion}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn-primary" style={{ flex: 1, justifyContent: "center", opacity: seleccionados.length === 0 ? 0.5 : 1 }}
+            onClick={confirmar} disabled={seleccionados.length === 0}>
+            Importar {seleccionados.length} evento{seleccionados.length !== 1 ? "s" : ""}
+          </button>
+          <button className="btn-ghost" onClick={() => setResultado(null)}>Volver</button>
+        </div>
+      </>}
     </div>
   );
 }
@@ -694,6 +902,7 @@ function FormEvento({materias,initial,onSave,onClose}){
 function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
   const [edit,setEdit]=useState(null);
   const [add,setAdd]=useState(false);
+  const [importar,setImportar]=useState(false);
   const [ft,setFt]=useState("all");
   const [confirm,setConfirm]=useState(null);
   const hoy=new Date();
@@ -733,6 +942,7 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
         <div style={{display:"flex",gap:5,flex:1,flexWrap:"wrap"}}>
           {["all",...Object.keys(TIPO_EVENTO)].map(k=>{const t=k==="all"?null:TIPO_EVENTO[k];const ac=ft===k;return <button key={k} onClick={()=>setFt(k)} style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:500,border:`1px solid ${ac?(t?.color||"var(--blue)"):"var(--border)"}`,background:ac?(t?`${t.color}18`:"var(--blue-dim)"):"transparent",color:ac?(t?.color||"var(--blue)"):"var(--text2)",transition:"all 0.15s"}}>{k==="all"?"Todos":t.label}</button>;})}
         </div>
+        <button className="btn-ghost" style={{fontSize:13}} onClick={()=>setImportar(true)}>Importar desde texto</button>
         <button className="btn-primary" onClick={()=>setAdd(true)}><Icon name="plus" size={14} color="#fff"/>Agregar</button>
       </div>
       {prox.length>0&&<><p className="section-title">Próximos ({prox.length})</p><div style={{display:"flex",flexDirection:"column",gap:6}}>{prox.map(ev=><Row key={ev.id} ev={ev}/>)}</div></>}
@@ -740,6 +950,9 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
       {fil.length===0&&<div className="card" style={{padding:24,textAlign:"center",color:"var(--text2)",fontSize:13}}>Sin eventos</div>}
       {add&&<Modal title="Nuevo Evento" onClose={()=>setAdd(false)}><FormEvento materias={materias} onSave={f=>{onAdd(f);setAdd(false);}} onClose={()=>setAdd(false)}/></Modal>}
       {edit&&<Modal title="Editar Evento" onClose={()=>setEdit(null)}><FormEvento materias={materias} initial={edit} onSave={f=>{onEdit(edit.id,f);setEdit(null);}} onClose={()=>setEdit(null)}/></Modal>}
+      {importar&&<Modal title="Importar eventos desde texto" onClose={()=>setImportar(false)} width={600}>
+        <ImportadorIA materias={materias} onImportar={evs=>{evs.forEach(ev=>onAdd(ev));}} onClose={()=>setImportar(false)}/>
+      </Modal>}
       {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{onDelete(confirm.id);setConfirm(null);}}/>}
     </div>
   );
