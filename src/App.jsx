@@ -266,12 +266,18 @@ function BloqueadoIA() {
       <div>
         <div style={{fontFamily:"'Barlow Condensed'",fontSize:20,fontWeight:700,marginBottom:8}}>Asistente IA no activado</div>
         <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.7,maxWidth:320}}>
-          Esta función requiere activación. Contactá al administrador del sistema para obtener acceso al asistente de estudio con IA.
+          Esta función requiere activación. Contactá al desarrollador para obtener acceso al asistente de estudio con IA.
         </div>
       </div>
-      <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 18px",fontSize:12,color:"var(--text2)"}}>
-        franzk.dev — contacto para extensiones
-      </div>
+      <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer" style={{
+        background:"var(--blue)",color:"#fff",borderRadius:8,padding:"10px 24px",
+        fontSize:13,fontWeight:600,textDecoration:"none",display:"flex",alignItems:"center",gap:8,
+        transition:"background 0.2s"
+      }}
+        onMouseEnter={e=>e.currentTarget.style.background="var(--blue2)"}
+        onMouseLeave={e=>e.currentTarget.style.background="var(--blue)"}>
+        Contactar en frazk.lol
+      </a>
     </div>
   );
 }
@@ -657,52 +663,133 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
 // ─── HORARIOS ─────────────────────────────────────────────────────────────────
 function VistaHorarios({materias}){
   const cur=materias.filter(m=>["cursando","regular"].includes(m.estado)&&m.dias?.length>0);
+  const [vistaGrid, setVistaGrid]=useState(false);
 
-  // Construir lista de entradas (materia, dia, hora) usando horarios por día
   const entradas=cur.flatMap(m=>
     (m.dias||[]).map(dia=>({
-      materia:m,
-      dia,
+      materia:m, dia,
       hora: m.horarios?.[dia] || m.horario || "12:00"
     }))
-  );
+  ).sort((a,b)=>a.hora.localeCompare(b.hora));
 
+  // Vista por día (default) — más legible en cel y desktop
+  const porDia=DIAS_SEMANA.map(dia=>({
+    dia,
+    clases: entradas.filter(e=>e.dia===dia).sort((a,b)=>a.hora.localeCompare(b.hora))
+  })).filter(d=>d.clases.length>0);
+
+  // Vista grilla
   const horasConClases=[...new Set(entradas.map(e=>e.hora))].sort();
   const horasAMostrar=horasConClases.length>0?HORAS.filter(h=>{
     const idx=HORAS.indexOf(h);
     const indices=horasConClases.map(x=>HORAS.indexOf(x)).filter(x=>x>=0);
+    if(!indices.length) return false;
     const min=Math.max(0,Math.min(...indices)-1);
     const max=Math.min(HORAS.length-1,Math.max(...indices)+1);
     return idx>=min&&idx<=max;
   }):HORAS;
+
   return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
-      <div style={{overflowX:"auto"}}>
-        <div style={{minWidth:640}}>
-          <div style={{display:"grid",gridTemplateColumns:"60px repeat(6,1fr)",gap:2,marginBottom:2}}>
-            <div/>{DIAS_SEMANA.map(d=><div key={d} style={{background:"var(--surface2)",borderRadius:5,padding:"7px 0",textAlign:"center",fontFamily:"'Barlow Condensed'",fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text2)"}}>{d}</div>)}
-          </div>
-          {horasAMostrar.map(hora=>{
-            const ok=DIAS_SEMANA.some(d=>cur.some(m=>m.horario===hora&&m.dias.includes(d)));
-            return(
-              <div key={hora} style={{display:"grid",gridTemplateColumns:"60px repeat(6,1fr)",gap:2,marginBottom:2}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:8,fontFamily:"'DM Mono'",fontSize:10,color:ok?"var(--blue)":"var(--text3)"}}>{hora}</div>
-                {DIAS_SEMANA.map(dia=>{
-                  const entrada=entradas.find(e=>e.hora===hora&&e.dia===dia);
-                  const m=entrada?.materia;
-                  const est=m?ESTADOS[m.estado]:null;
-                  return <div key={dia} style={{background:m?est.bg:"var(--surface)",minHeight:36,border:`1px solid ${m?est.color+"33":"var(--border)"}`,borderRadius:5,padding:m?"6px 8px":"3px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
-                    {m&&<><span style={{fontSize:10,fontWeight:600,color:est.color,lineHeight:1.3}}>{m.nombre.length>22?m.nombre.slice(0,22)+"…":m.nombre}</span><span style={{fontSize:9,color:"var(--text2)",marginTop:1}}>Aula {m.aula}</span></>}
-                  </div>;
-                })}
-              </div>
-            );
-          })}
+    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:16}}>
+
+      {/* Toggle de vista */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <p style={{fontSize:13,color:"var(--text2)"}}>{cur.length} materia{cur.length!==1?"s":""} con horario cargado</p>
+        <div style={{display:"flex",gap:1,background:"var(--surface2)",borderRadius:7,padding:3}}>
+          {[{id:false,label:"Por día"},{id:true,label:"Grilla"}].map(v=>(
+            <button key={String(v.id)} onClick={()=>setVistaGrid(v.id)} style={{
+              padding:"5px 14px",borderRadius:5,border:"none",fontSize:12,fontWeight:500,
+              background:vistaGrid===v.id?"var(--blue)":"transparent",
+              color:vistaGrid===v.id?"#fff":"var(--text2)",transition:"all 0.15s"
+            }}>{v.label}</button>
+          ))}
         </div>
       </div>
+
+      {cur.length===0&&(
+        <div className="card" style={{padding:28,textAlign:"center",color:"var(--text2)",fontSize:13}}>
+          No hay materias con horario cargado todavía
+        </div>
+      )}
+
+      {/* ── VISTA POR DÍA ── */}
+      {!vistaGrid&&cur.length>0&&(
+        porDia.length===0?(
+          <div className="card" style={{padding:24,textAlign:"center",color:"var(--text2)",fontSize:13}}>
+            Agregá días a tus materias para ver el horario
+          </div>
+        ):(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
+            {porDia.map(({dia,clases})=>(
+              <div key={dia} className="card" style={{padding:0,overflow:"hidden"}}>
+                <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontFamily:"'Barlow Condensed'",fontSize:14,fontWeight:700,letterSpacing:0.5}}>{dia}</span>
+                  <span style={{fontSize:11,color:"var(--text2)"}}>{clases.length} clase{clases.length!==1?"s":""}</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:0}}>
+                  {clases.map((e,i)=>{
+                    const est=ESTADOS[e.materia.estado];
+                    return(
+                      <div key={i} style={{padding:"10px 14px",borderBottom:i<clases.length-1?"1px solid var(--border)":"none",display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.materia.nombre}</div>
+                          <div style={{fontSize:11,color:"var(--text2)",marginTop:2,display:"flex",gap:8}}>
+                            <span style={{fontFamily:"'DM Mono'",color:"var(--blue)"}}>{e.hora}</span>
+                            {e.materia.aula&&<span>Aula {e.materia.aula}</span>}
+                            <span className="tag" style={{background:est.bg,color:est.color,padding:"0 6px"}}>{est.label}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* ── VISTA GRILLA ── */}
+      {vistaGrid&&cur.length>0&&(
+        <div style={{overflowX:"auto"}}>
+          <div style={{minWidth:600}}>
+            <div style={{display:"grid",gridTemplateColumns:"56px repeat(6,1fr)",gap:2,marginBottom:2}}>
+              <div/>
+              {DIAS_SEMANA.map(d=>(
+                <div key={d} style={{background:"var(--surface2)",borderRadius:5,padding:"7px 0",textAlign:"center",fontFamily:"'Barlow Condensed'",fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text2)"}}>{d}</div>
+              ))}
+            </div>
+            {horasAMostrar.map(hora=>{
+              const tieneAlgo=DIAS_SEMANA.some(d=>entradas.some(e=>e.hora===hora&&e.dia===d));
+              return(
+                <div key={hora} style={{display:"grid",gridTemplateColumns:"56px repeat(6,1fr)",gap:2,marginBottom:2}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:7,fontFamily:"'DM Mono'",fontSize:9,color:tieneAlgo?"var(--blue)":"var(--text3)"}}>{hora}</div>
+                  {DIAS_SEMANA.map(dia=>{
+                    const entrada=entradas.find(e=>e.hora===hora&&e.dia===dia);
+                    const m=entrada?.materia;
+                    const est=m?ESTADOS[m.estado]:null;
+                    return(
+                      <div key={dia} style={{background:m?est.bg:"var(--surface)",minHeight:34,border:`1px solid ${m?est.color+"44":"var(--border)"}`,borderRadius:5,padding:m?"5px 7px":"2px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                        {m&&<>
+                          <span style={{fontSize:9,fontWeight:700,color:est.color,lineHeight:1.3}}>{m.nombre.length>20?m.nombre.slice(0,20)+"…":m.nombre}</span>
+                          {m.aula&&<span style={{fontSize:8,color:"var(--text2)",marginTop:1}}>Aula {m.aula}</span>}
+                        </>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div><p className="section-title">Referencias</p>
         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          {Object.entries(ESTADOS).filter(([k])=>["cursando","regular"].includes(k)).map(([k,v])=><span key={k} className="tag" style={{background:v.bg,color:v.color}}>{v.label}</span>)}
+          {Object.entries(ESTADOS).filter(([k])=>["cursando","regular"].includes(k)).map(([k,v])=>(
+            <span key={k} className="tag" style={{background:v.bg,color:v.color}}>{v.label}</span>
+          ))}
         </div>
       </div>
     </div>
@@ -1579,6 +1666,21 @@ export default function App(){
       <ToastContainer toasts={toasts}/>
       {/* PANEL NOTIFICACIONES */}
       {showNotifs&&<PanelNotificaciones materias={materias} eventos={eventos} onClose={()=>setShowNotifs(false)}/>}
+      {/* BOTÓN FLOTANTE FRAZK */}
+      <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer"
+        title="Desarrollado por Franzk — frazk.lol"
+        style={{
+          position:"fixed", bottom: isMobile?"76px":"24px", right:"20px",
+          width:42, height:42, borderRadius:"50%",
+          background:"var(--surface2)", border:"1px solid var(--border)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          textDecoration:"none", zIndex:40, transition:"all 0.2s",
+          boxShadow:"0 2px 12px rgba(0,0,0,0.4)"
+        }}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.transform="scale(1.08)";}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="scale(1)";}}>
+        <span style={{fontFamily:"'Barlow Condensed'",fontWeight:800,fontSize:13,color:"var(--blue)",letterSpacing:0.5}}>FK</span>
+      </a>
     </>
   );
 }
