@@ -311,21 +311,21 @@ function Modal({title,onClose,children,width=520}){
     return()=>window.removeEventListener("keydown",fn);
   },[onClose]);
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,
+      display:"flex",alignItems:"flex-start",justifyContent:"center",
+      padding:"20px 16px",overflowY:"auto"}}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div ref={innerRef} className="card fade-in" style={{
         width:"100%",maxWidth:width,
-        maxHeight:"calc(100vh - 48px)",
         display:"flex",flexDirection:"column",
-        position:"relative"
+        position:"relative",marginTop:"auto",marginBottom:"auto",
+        flexShrink:0,
       }}>
-        {/* Header fijo */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px 0",flexShrink:0}}>
           <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>{title}</span>
           <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,lineHeight:1,padding:4,cursor:"pointer"}}>×</button>
         </div>
-        {/* Contenido con scroll */}
-        <div style={{overflowY:"auto",padding:"16px 24px 24px",flex:1}}>
+        <div style={{padding:"16px 24px 24px"}}>
           {children}
         </div>
       </div>
@@ -610,6 +610,14 @@ function VistasMaterias({materias,onAdd,onEdit,onDelete}){
 // ─── HORARIOS ─────────────────────────────────────────────────────────────────
 function VistaHorarios({materias}){
   const cur=materias.filter(m=>["cursando","regular"].includes(m.estado)&&m.dias?.length>0);
+  // Mostrar solo las horas que tienen al menos una materia, o todas si no hay ninguna
+  const horasConClases=HORAS.filter(h=>DIAS_SEMANA.some(d=>cur.some(m=>m.horario===h&&m.dias.includes(d))));
+  const horasAMostrar=horasConClases.length>0?HORAS.filter(h=>{
+    const idx=HORAS.indexOf(h);
+    const min=Math.max(0,Math.min(...horasConClases.map(x=>HORAS.indexOf(x)))-1);
+    const max=Math.min(HORAS.length-1,Math.max(...horasConClases.map(x=>HORAS.indexOf(x)))+1);
+    return idx>=min&&idx<=max;
+  }):HORAS;
   return(
     <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
       <div style={{overflowX:"auto"}}>
@@ -617,7 +625,7 @@ function VistaHorarios({materias}){
           <div style={{display:"grid",gridTemplateColumns:"60px repeat(6,1fr)",gap:2,marginBottom:2}}>
             <div/>{DIAS_SEMANA.map(d=><div key={d} style={{background:"var(--surface2)",borderRadius:5,padding:"7px 0",textAlign:"center",fontFamily:"'Barlow Condensed'",fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text2)"}}>{d}</div>)}
           </div>
-          {HORAS.map(hora=>{
+          {horasAMostrar.map(hora=>{
             const ok=DIAS_SEMANA.some(d=>cur.some(m=>m.horario===hora&&m.dias.includes(d)));
             return(
               <div key={hora} style={{display:"grid",gridTemplateColumns:"60px repeat(6,1fr)",gap:2,marginBottom:2}}>
