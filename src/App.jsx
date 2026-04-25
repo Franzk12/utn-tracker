@@ -1045,20 +1045,19 @@ function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
   );
 }
 
-// ─── ARCHIVOS (R2 + CARPETAS) ─────────────────────────────────────────────────
+// ─── ARCHIVOS (R2 + CARPETAS POR MATERIA) ────────────────────────────────────
 function VistaArchivos({materias,userId,showToast}){
   const [archivos,setArchivos]   = useState([]);
   const [carpetas,setCarpetas]   = useState([]);
   const [loading,setLoading]     = useState(true);
-  const [carpetaActual,setCarpetaActual] = useState(null); // null = raíz
-  const [fm,setFm]               = useState("all");
-  const [drag,setDrag]           = useState(false);
   const [uploading,setUploading] = useState(false);
   const [uploadProgress,setUploadProgress] = useState("");
   const [confirm,setConfirm]     = useState(null);
+  const [confirmCarpeta,setConfirmCarpeta] = useState(null);
+  const [nav,setNav]             = useState(null); // null=raíz, {tipo:"materia",id} o {tipo:"carpeta",id,materiaId}
   const [nuevaCarpeta,setNuevaCarpeta] = useState(false);
   const [nombreCarpeta,setNombreCarpeta] = useState("");
-  const [confirmCarpeta,setConfirmCarpeta] = useState(null);
+  const [drag,setDrag]           = useState(false);
 
   useEffect(()=>{ cargar(); },[]);
 
@@ -1076,31 +1075,25 @@ function VistaArchivos({materias,userId,showToast}){
   };
 
   const crearCarpeta=async()=>{
-    if(!nombreCarpeta.trim()) return;
-    const {data,error}=await sb.from("carpetas").insert({user_id:userId,nombre:nombreCarpeta.trim()}).select().single();
+    if(!nombreCarpeta.trim()||!nav?.id) return;
+    const {data,error}=await sb.from("carpetas").insert({
+      user_id:userId, nombre:nombreCarpeta.trim(), materia_id:nav.id
+    }).select().single();
     if(error){showToast(error.message);return;}
     setCarpetas(cs=>[...cs,data]);
-    setNombreCarpeta("");
-    setNuevaCarpeta(false);
+    setNombreCarpeta(""); setNuevaCarpeta(false);
   };
 
   const eliminarCarpeta=async(c)=>{
-    // Mover archivos de esta carpeta a raíz
     await sb.from("archivos").update({carpeta_id:null}).eq("carpeta_id",c.id);
     const {error}=await sb.from("carpetas").delete().eq("id",c.id);
     if(error){showToast(error.message);return;}
     setCarpetas(cs=>cs.filter(x=>x.id!==c.id));
-    if(carpetaActual===c.id) setCarpetaActual(null);
+    if(nav?.id===c.id) setNav({tipo:"materia",id:c.materia_id});
     await cargar();
   };
 
-  const moverArchivo=async(archivoId,carpetaId)=>{
-    const {error}=await sb.from("archivos").update({carpeta_id:carpetaId}).eq("id",archivoId);
-    if(error){showToast(error.message);return;}
-    setArchivos(as=>as.map(a=>a.id===archivoId?{...a,carpeta_id:carpetaId}:a));
-  };
-
-  const subir=async(files)=>{
+  const subir=async(files,materiaId,carpetaId=null)=>{
     setUploading(true);
     for(const file of Array.from(files)){
       setUploadProgress(file.name);
@@ -1108,26 +1101,21 @@ function VistaArchivos({materias,userId,showToast}){
         const res=await fetch("/api/upload",{
           method:"POST",
           headers:{
-            "Content-Type": file.type||"application/octet-stream",
-            "x-file-name": encodeURIComponent(file.name),
-            "x-user-id": userId,
+            "Content-Type":file.type||"application/octet-stream",
+            "x-file-name":encodeURIComponent(file.name),
+            "x-user-id":userId,
           },
-          body: file,
+          body:file,
         });
         const data=await res.json();
         if(data.error){showToast(data.error);continue;}
-        const matId=fm==="all"?(materias[0]?.id||null):fm;
         const {error:dbErr}=await sb.from("archivos").insert({
-          user_id:userId,
-          materia_id:matId,
-          carpeta_id:carpetaActual,
-          nombre:file.name,
-          tipo:file.name.split(".").pop().toUpperCase(),
-          tamaño:file.size,
-          storage_path:data.key,
+          user_id:userId, materia_id:materiaId, carpeta_id:carpetaId,
+          nombre:file.name, tipo:file.name.split(".").pop().toUpperCase(),
+          tamaño:file.size, storage_path:data.key,
         });
         if(dbErr) showToast(dbErr.message);
-      }catch(e){showToast(`Error subiendo ${file.name}: ${e.message}`);}
+      }catch(e){showToast(`Error: ${e.message}`);}
     }
     setUploadProgress("");
     await cargar();
@@ -1137,7 +1125,7 @@ function VistaArchivos({materias,userId,showToast}){
   const eliminar=async(a)=>{
     if(a.storage_path){
       try{ await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`,{method:"DELETE"}); }
-      catch(e){showToast(`No se pudo eliminar el archivo físico: ${e.message}`);}
+      catch(e){showToast(e.message);}
     }
     const {error}=await sb.from("archivos").delete().eq("id",a.id);
     if(error){showToast(error.message);return;}
@@ -1154,145 +1142,199 @@ function VistaArchivos({materias,userId,showToast}){
     }catch(e){showToast(e.message);}
   };
 
-  // Filtrar por materia y carpeta actual
-  const archivosFiltrados = archivos.filter(a=>{
-    const matchMat = fm==="all" || a.materia_id===fm;
-    const matchCarpeta = carpetaActual===null ? !a.carpeta_id : a.carpeta_id===carpetaActual;
-    return matchMat && matchCarpeta;
-  });
-
   const fT=b=>b>1e6?`${(b/1e6).toFixed(1)} MB`:b>1e3?`${(b/1e3).toFixed(0)} KB`:`${b} B`;
   const tC=t=>({PDF:"var(--red)",DOCX:"var(--blue)",DOC:"var(--blue)",XLSX:"var(--green)",PPTX:"var(--slate)",PNG:"var(--slate)",JPG:"var(--slate)"})[t]||"var(--text2)";
 
+  const SubirBtn=({materiaId,carpetaId=null})=>(
+    <label className="btn-primary" style={{cursor:uploading?"wait":"pointer",opacity:uploading?0.7:1,fontSize:12,padding:"6px 14px"}}>
+      <Icon name="upload" size={13} color="#fff"/>
+      {uploading?(uploadProgress?`${uploadProgress.slice(0,14)}…`:"Subiendo..."):"Subir archivo"}
+      <input type="file" multiple style={{display:"none"}} onChange={e=>subir(e.target.files,materiaId,carpetaId)} disabled={uploading}/>
+    </label>
+  );
+
+  const ArchivoRow=({a})=>(
+    <div className="card" style={{padding:"9px 13px",display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontFamily:"'DM Mono'",fontSize:9,fontWeight:600,color:tC(a.tipo),background:`${tC(a.tipo)}15`,padding:"2px 5px",borderRadius:3,flexShrink:0}}>{a.tipo}</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre}</div>
+        <div style={{fontSize:10,color:"var(--text2)",marginTop:1,display:"flex",gap:8}}>
+          {a.tamaño&&<span>{fT(a.tamaño)}</span>}
+          <span>{new Date(a.created_at).toLocaleDateString("es-AR")}</span>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:5,flexShrink:0}}>
+        {a.storage_path&&<button className="btn-ghost" style={{padding:"4px 9px",fontSize:11}} onClick={()=>descargar(a)}>Descargar</button>}
+        <button className="btn-danger" style={{padding:"4px 8px"}} onClick={()=>setConfirm({archivo:a,nombre:a.nombre})}><Icon name="trash" size={12}/></button>
+      </div>
+    </div>
+  );
+
+  const DropZone=({materiaId,carpetaId=null})=>(
+    <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
+      onDrop={e=>{e.preventDefault();setDrag(false);subir(e.dataTransfer.files,materiaId,carpetaId)}}
+      style={{border:`1px dashed ${drag?"var(--blue)":"var(--border)"}`,borderRadius:8,padding:"12px",textAlign:"center",background:drag?"var(--blue-dim)":"var(--surface)",transition:"all 0.2s",color:"var(--text2)",fontSize:12}}>
+      {drag?"Soltar aquí":"O arrastrar archivos aquí"}
+    </div>
+  );
+
   if(loading) return <Spinner/>;
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
 
-      {/* Barra superior */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <select value={fm} onChange={e=>setFm(e.target.value)} style={{flex:1,minWidth:160}}>
-          <option value="all">Todas las materias</option>
-          {materias.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}
-        </select>
-        <button className="btn-ghost" style={{padding:"7px 12px",fontSize:13}} onClick={()=>setNuevaCarpeta(true)}>
-          <Icon name="plus" size={13}/>Carpeta
-        </button>
-        <label className="btn-primary" style={{cursor:uploading?"wait":"pointer",opacity:uploading?0.7:1}}>
-          <Icon name="upload" size={14} color="#fff"/>
-          {uploading?(uploadProgress?`${uploadProgress.slice(0,16)}${uploadProgress.length>16?"…":""}...`:"Subiendo..."):"Subir"}
-          <input type="file" multiple style={{display:"none"}} onChange={e=>subir(e.target.files)} disabled={uploading}/>
-        </label>
+  // ── VISTA CARPETA ────────────────────────────────────────────────────────────
+  if(nav?.tipo==="carpeta"){
+    const carpeta=carpetas.find(c=>c.id===nav.id);
+    const materia=materias.find(m=>m.id===nav.materiaId);
+    const archsCarpeta=archivos.filter(a=>a.carpeta_id===nav.id);
+    return(
+      <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <button className="btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>setNav(null)}>Archivos</button>
+          <span style={{color:"var(--text3)"}}>›</span>
+          <button className="btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>setNav({tipo:"materia",id:nav.materiaId})}>{materia?.nombre}</button>
+          <span style={{color:"var(--text3)"}}>›</span>
+          <span style={{fontSize:12,color:"var(--text)",fontWeight:600}}>{carpeta?.nombre}</span>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:"var(--text2)"}}>{archsCarpeta.length} archivo{archsCarpeta.length!==1?"s":""}</span>
+          <SubirBtn materiaId={nav.materiaId} carpetaId={nav.id}/>
+        </div>
+        <DropZone materiaId={nav.materiaId} carpetaId={nav.id}/>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {archsCarpeta.length===0
+            ?<div style={{padding:20,textAlign:"center",color:"var(--text2)",fontSize:13}}>Esta carpeta está vacía</div>
+            :archsCarpeta.map(a=><ArchivoRow key={a.id} a={a}/>)
+          }
+        </div>
+        {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
       </div>
+    );
+  }
 
-      {/* Breadcrumb / navegación */}
-      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-        <button onClick={()=>setCarpetaActual(null)} style={{
-          background:carpetaActual===null?"var(--blue-dim)":"transparent",
-          border:`1px solid ${carpetaActual===null?"var(--blue)":"var(--border)"}`,
-          color:carpetaActual===null?"var(--blue)":"var(--text2)",
-          padding:"4px 12px",borderRadius:5,fontSize:12,cursor:"pointer",transition:"all 0.15s"
-        }}>Raíz</button>
-        {carpetaActual&&<>
-          <span style={{color:"var(--text3)",fontSize:12}}>›</span>
-          <span style={{background:"var(--blue-dim)",border:"1px solid var(--blue)",color:"var(--blue)",padding:"4px 12px",borderRadius:5,fontSize:12}}>
-            {carpetas.find(c=>c.id===carpetaActual)?.nombre}
-          </span>
-        </>}
-      </div>
-
-      {/* Carpetas (solo en raíz) */}
-      {carpetaActual===null && carpetas.length>0 && (
-        <div>
+  // ── VISTA MATERIA ────────────────────────────────────────────────────────────
+  if(nav?.tipo==="materia"){
+    const materia=materias.find(m=>m.id===nav.id);
+    const est=ESTADOS[materia?.estado];
+    const carpetasMateria=carpetas.filter(c=>c.materia_id===nav.id);
+    const archsDirectos=archivos.filter(a=>a.materia_id===nav.id&&!a.carpeta_id);
+    return(
+      <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <button className="btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>setNav(null)}>Archivos</button>
+          <span style={{color:"var(--text3)"}}>›</span>
+          <span style={{fontSize:12,color:"var(--text)",fontWeight:600}}>{materia?.nombre}</span>
+          {est&&<span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>}
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+          <button className="btn-ghost" style={{padding:"6px 12px",fontSize:12}} onClick={()=>setNuevaCarpeta(true)}>
+            <Icon name="plus" size={12}/>Nueva carpeta
+          </button>
+          <SubirBtn materiaId={nav.id}/>
+        </div>
+        {carpetasMateria.length>0&&<>
           <p className="section-title">Carpetas</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
-            {carpetas.map(c=>{
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:8}}>
+            {carpetasMateria.map(c=>{
               const count=archivos.filter(a=>a.carpeta_id===c.id).length;
               return(
-                <div key={c.id} className="card" style={{padding:"12px 14px",cursor:"pointer",transition:"border-color 0.15s",display:"flex",alignItems:"center",gap:10}}
-                  onClick={()=>setCarpetaActual(c.id)}
+                <div key={c.id} className="card" style={{padding:"11px 13px",cursor:"pointer",transition:"border-color 0.15s",display:"flex",alignItems:"center",gap:9}}
+                  onClick={()=>setNav({tipo:"carpeta",id:c.id,materiaId:nav.id})}
                   onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
                   onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-                  <div style={{fontSize:20,flexShrink:0}}>📁</div>
+                  <span style={{fontSize:18,flexShrink:0}}>📁</span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.nombre}</div>
-                    <div style={{fontSize:11,color:"var(--text2)",marginTop:1}}>{count} archivo{count!==1?"s":""}</div>
+                    <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.nombre}</div>
+                    <div style={{fontSize:10,color:"var(--text2)",marginTop:1}}>{count} archivo{count!==1?"s":""}</div>
                   </div>
-                  <button className="btn-danger" style={{padding:"4px 7px",flexShrink:0}} onClick={e=>{e.stopPropagation();setConfirmCarpeta(c);}}>
-                    <Icon name="trash" size={12}/>
+                  <button className="btn-danger" style={{padding:"3px 6px",flexShrink:0}} onClick={e=>{e.stopPropagation();setConfirmCarpeta(c);}}>
+                    <Icon name="trash" size={11}/>
                   </button>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* Drop zone */}
-      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
-        onDrop={e=>{e.preventDefault();setDrag(false);subir(e.dataTransfer.files);}}
-        style={{border:`1px dashed ${drag?"var(--blue)":"var(--border)"}`,borderRadius:10,padding:"18px",textAlign:"center",background:drag?"var(--blue-dim)":"var(--surface)",transition:"all 0.2s",color:"var(--text2)",fontSize:13}}>
-        {drag?"Soltar archivos aquí":`Arrastrar archivos aquí${carpetaActual?" — se subirán a esta carpeta":""}`}
-      </div>
-
-      {/* Archivos */}
-      <div>
-        {archivosFiltrados.length>0&&<p className="section-title">Archivos ({archivosFiltrados.length})</p>}
+        </>}
+        <p className="section-title">Archivos directos</p>
+        <DropZone materiaId={nav.id} carpetaId={null}/>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {archivosFiltrados.length===0?(
-            <div className="card" style={{padding:20,textAlign:"center",color:"var(--text2)",fontSize:13}}>
-              Sin archivos {carpetaActual?"en esta carpeta":"en raíz"}
+          {archsDirectos.length===0
+            ?<div style={{padding:10,textAlign:"center",color:"var(--text2)",fontSize:12}}>Sin archivos directos</div>
+            :archsDirectos.map(a=><ArchivoRow key={a.id} a={a}/>)
+          }
+        </div>
+        {nuevaCarpeta&&(
+          <Modal title="Nueva carpeta" onClose={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div>
+                <Lbl>Nombre</Lbl>
+                <input style={{width:"100%"}} value={nombreCarpeta} onChange={e=>setNombreCarpeta(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&crearCarpeta()} placeholder="Ej: Parciales, Apuntes, TPs..."/>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn-primary" style={{flex:1}} onClick={crearCarpeta}>Crear</button>
+                <button className="btn-ghost" onClick={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>Cancelar</button>
+              </div>
             </div>
-          ):archivosFiltrados.map(a=>{
-            const mat=materias.find(m=>m.id===a.materia_id);
+          </Modal>
+        )}
+        {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
+        {confirmCarpeta&&<ConfirmModal nombre={`carpeta "${confirmCarpeta.nombre}"`} onClose={()=>setConfirmCarpeta(null)} onConfirm={()=>{eliminarCarpeta(confirmCarpeta);setConfirmCarpeta(null);}}/>}
+      </div>
+    );
+  }
+
+  // ── VISTA RAÍZ ───────────────────────────────────────────────────────────────
+  const materiasConContenido=materias.filter(m=>archivos.some(a=>a.materia_id===m.id)||carpetas.some(c=>c.materia_id===m.id));
+  const materiasVacias=materias.filter(m=>!archivos.some(a=>a.materia_id===m.id)&&!carpetas.some(c=>c.materia_id===m.id));
+  return(
+    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
+      <p style={{fontSize:13,color:"var(--text2)"}}>Seleccioná una materia para ver o subir archivos.</p>
+      {materiasConContenido.length>0&&<>
+        <p className="section-title">Materias con archivos</p>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {materiasConContenido.map(m=>{
+            const est=ESTADOS[m.estado];
+            const totalA=archivos.filter(a=>a.materia_id===m.id).length;
+            const totalC=carpetas.filter(c=>c.materia_id===m.id).length;
             return(
-              <div key={a.id} className="card" style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:11}}>
-                <span style={{fontFamily:"'DM Mono'",fontSize:10,fontWeight:600,color:tC(a.tipo),background:`${tC(a.tipo)}15`,padding:"3px 6px",borderRadius:4,flexShrink:0}}>{a.tipo}</span>
+              <div key={m.id} className="card" style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"border-color 0.15s"}}
+                onClick={()=>setNav({tipo:"materia",id:m.id})}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
+                <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre}</div>
-                  <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:9,marginTop:2,flexWrap:"wrap"}}>
-                    {mat&&<span>{mat.nombre}</span>}
-                    {a.tamaño&&<span>{fT(a.tamaño)}</span>}
-                    <span>{new Date(a.created_at).toLocaleDateString("es-AR")}</span>
+                  <div style={{fontSize:14,fontWeight:600,marginBottom:3}}>{m.nombre}</div>
+                  <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {totalA>0&&<span>{totalA} archivo{totalA!==1?"s":""}</span>}
+                    {totalC>0&&<span>{totalC} carpeta{totalC!==1?"s":""}</span>}
+                    <span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>
                   </div>
                 </div>
-                <div style={{display:"flex",gap:5,flexShrink:0}}>
-                  {/* Mover a carpeta */}
-                  {carpetas.length>0&&(
-                    <select value={a.carpeta_id||""} onChange={e=>moverArchivo(a.id,e.target.value||null)}
-                      style={{fontSize:11,padding:"4px 6px",minWidth:0,maxWidth:110,borderRadius:5}}
-                      onClick={e=>e.stopPropagation()}>
-                      <option value="">Raíz</option>
-                      {carpetas.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
-                  )}
-                  {a.storage_path&&<button className="btn-ghost" style={{padding:"5px 9px",fontSize:12}} onClick={()=>descargar(a)}>Descargar</button>}
-                  <button className="btn-danger" onClick={()=>setConfirm({archivo:a,nombre:a.nombre})}><Icon name="trash" size={13}/></button>
-                </div>
+                <Icon name="chevronR" size={16} color="var(--text3)"/>
               </div>
             );
           })}
         </div>
-      </div>
-
-      {/* Modal nueva carpeta */}
-      {nuevaCarpeta&&(
-        <Modal title="Nueva carpeta" onClose={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            <div>
-              <Lbl>Nombre de la carpeta</Lbl>
-              <input style={{width:"100%"}} value={nombreCarpeta} onChange={e=>setNombreCarpeta(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&crearCarpeta()} placeholder="Ej: Análisis II — Parciales"/>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button className="btn-primary" style={{flex:1}} onClick={crearCarpeta}>Crear carpeta</button>
-              <button className="btn-ghost" onClick={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>Cancelar</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
-      {confirmCarpeta&&<ConfirmModal nombre={`carpeta "${confirmCarpeta.nombre}"`} onClose={()=>setConfirmCarpeta(null)} onConfirm={()=>{eliminarCarpeta(confirmCarpeta);setConfirmCarpeta(null);}}/>}
+      </>}
+      {materiasVacias.length>0&&<>
+        <p className="section-title" style={{marginTop:4}}>Otras materias</p>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {materiasVacias.map(m=>{
+            const est=ESTADOS[m.estado];
+            return(
+              <div key={m.id} className="card" style={{padding:"10px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",opacity:0.55,transition:"all 0.15s"}}
+                onClick={()=>setNav({tipo:"materia",id:m.id})}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--border2)";e.currentTarget.style.opacity="1";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.opacity="0.55";}}>
+                <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
+                <span style={{flex:1,fontSize:13,fontWeight:500}}>{m.nombre}</span>
+                <span style={{fontSize:11,color:"var(--text3)"}}>Sin archivos</span>
+                <Icon name="chevronR" size={14} color="var(--text3)"/>
+              </div>
+            );
+          })}
+        </div>
+      </>}
+      {materias.length===0&&<div className="card" style={{padding:28,textAlign:"center",color:"var(--text2)",fontSize:13}}>Primero agregá materias para organizar tus archivos</div>}
     </div>
   );
 }
