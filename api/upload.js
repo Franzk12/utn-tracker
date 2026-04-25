@@ -1,39 +1,49 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
-const R2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-  },
-});
-
-const BUCKET = "archivos";
+import { err, checkMethod, checkEnv, readRawBody, setCors } from "./_utils.js";
 
 export const config = { api: { bodyParser: false } };
 
-// Leer body raw como buffer
-function leerBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", c => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+const BUCKET = "archivos";
+
+function getR2Client() {
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    },
   });
 }
 
 export default async function handler(req, res) {
+  setCors(res);
+
+  // Preflight CORS
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  if (!checkEnv(res, "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")) return;
+
+  const R2 = getR2Client();
+
   // ── SUBIR ──────────────────────────────────────────────────────────────────
   if (req.method === "POST") {
     try {
       const contentType = req.headers["content-type"] || "application/octet-stream";
       const fileName    = decodeURIComponent(req.headers["x-file-name"] || "archivo");
       const userId      = req.headers["x-user-id"] || "unknown";
-      const key         = `${userId}/${Date.now()}_${fileName}`;
 
-      const body = await leerBody(req);
+      if (!fileName || fileName === "archivo") {
+        return err(res, 400, "El header x-file-name es requerido");
+      }
+
+      const key  = `${userId}/${Date.now()}_${fileName}`;
+      const body = await readRawBody(req);
+
+      if (body.length === 0) {
+        return err(res, 400, "El archivo está vacío");
+      }
 
       await R2.send(new PutObjectCommand({
         Bucket: BUCKET,
@@ -43,41 +53,40 @@ export default async function handler(req, res) {
       }));
 
       return res.status(200).json({ key, nombre: fileName, tamaño: body.length });
-    } catch (err) {
-      console.error("R2 upload error:", err.message);
-      return res.status(500).json({ error: err.message });
+    } catch (e) {
+      return err(res, 500, e.message);
     }
   }
 
   // ── URL FIRMADA PARA DESCARGAR ─────────────────────────────────────────────
   if (req.method === "GET") {
-    try {
-      const { key } = req.query;
-      if (!key) return res.status(400).json({ error: "Falta key" });
+    const { key } = req.query;
+    if (!key) return err(res, 400, "El parámetro 'key' es requerido");
 
+    try {
       const url = await getSignedUrl(
         R2,
         new GetObjectCommand({ Bucket: BUCKET, Key: key }),
         { expiresIn: 3600 }
       );
       return res.status(200).json({ url });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+    } catch (e) {
+      return err(res, 500, e.message);
     }
   }
 
   // ── ELIMINAR ───────────────────────────────────────────────────────────────
   if (req.method === "DELETE") {
-    try {
-      const { key } = req.query;
-      if (!key) return res.status(400).json({ error: "Falta key" });
+    const { key } = req.query;
+    if (!key) return err(res, 400, "El parámetro 'key' es requerido");
 
+    try {
       await R2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
       return res.status(200).json({ ok: true });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+    } catch (e) {
+      return err(res, 500, e.message);
     }
   }
 
-  return res.status(405).json({ error: "Método no permitido" });
+  return err(res, 405, "Método no permitido");
 }
