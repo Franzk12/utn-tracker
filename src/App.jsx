@@ -2,150 +2,76 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SUPABASE ────────────────────────────────────────────────────────────────
-const SUPA_URL  = import.meta.env.VITE_SUPA_URL;
+const SUPA_URL = import.meta.env.VITE_SUPA_URL;
 const SUPA_ANON = import.meta.env.VITE_SUPA_ANON;
 const sb = createClient(SUPA_URL, SUPA_ANON);
 
 // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 const ESTADOS = {
-  cursando:       { label:"Cursando",         color:"#60a5fa", bg:"rgba(96,165,250,0.1)"  },
-  regular:        { label:"Regular",          color:"#94a3b8", bg:"rgba(148,163,184,0.1)" },
-  promocionada:   { label:"Promocionada",     color:"#6ee7b7", bg:"rgba(110,231,183,0.1)" },
-  aprobada_final: { label:"Aprobada c/Final", color:"#6ee7b7", bg:"rgba(110,231,183,0.1)" },
-  libre:          { label:"Libre",            color:"#f87171", bg:"rgba(248,113,113,0.1)" },
-  pendiente:      { label:"Pendiente",        color:"#475569", bg:"rgba(71,85,105,0.15)"  },
+  cursando: { label: "Cursando", color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
+  regular: { label: "Regular", color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
+  promocionada: { label: "Promocionada", color: "#6ee7b7", bg: "rgba(110,231,183,0.1)" },
+  aprobada_final: { label: "Aprobada c/Final", color: "#6ee7b7", bg: "rgba(110,231,183,0.1)" },
+  libre: { label: "Libre", color: "#f87171", bg: "rgba(248,113,113,0.1)" },
+  pendiente: { label: "Pendiente", color: "#475569", bg: "rgba(71,85,105,0.15)" },
 };
-const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-const HORAS = ["12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00","22:30"];
+const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const HORAS = ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30"];
 const TIPO_EVENTO = {
-  parcial:{label:"Parcial",color:"#60a5fa"},
-  final:  {label:"Final",  color:"#f87171"},
-  tp:     {label:"TP",     color:"#6ee7b7"},
-  otro:   {label:"Otro",   color:"#94a3b8"},
+  parcial: { label: "Parcial", color: "#60a5fa" },
+  final: { label: "Final", color: "#f87171" },
+  tp: { label: "TP", color: "#6ee7b7" },
+  otro: { label: "Otro", color: "#94a3b8" },
 };
 const MODOS_IA = [
-  { id:"tutor",      label:"Tutor",       desc:"Te evalúa con preguntas para ver si entendiste el tema"    },
-  { id:"planificar", label:"Planificar",  desc:"Te arma un plan de estudio en base a tus días disponibles" },
-  { id:"tp",         label:"TP / Código", desc:"Te guía en trabajos prácticos sin darte la respuesta"      },
-  { id:"libre",      label:"Chat libre",  desc:"Hacé cualquier consulta académica sin estructura"           },
+  { id: "tutor", label: "Tutor", desc: "Te evalúa con preguntas para ver si entendiste el tema" },
+  { id: "planificar", label: "Planificar", desc: "Te arma un plan de estudio en base a tus días disponibles" },
+  { id: "tp", label: "TP / Código", desc: "Te guía en trabajos prácticos sin darte la respuesta" },
+  { id: "libre", label: "Chat libre", desc: "Hacé cualquier consulta académica sin estructura" },
 ];
 const MODELOS_IA = [
-  { id:"claude", label:"Claude Sonnet", color:"#c96442" },
-  { id:"gpt",    label:"GPT-4o mini",   color:"#10a37f" },
-  { id:"gemini", label:"Gemini Flash",  color:"#4285f4" },
+  { id: "claude", label: "Claude Sonnet", color: "#c96442" },
+  { id: "gpt", label: "GPT-4o mini", color: "#10a37f" },
+  { id: "gemini", label: "Gemini Flash", color: "#4285f4" },
 ];
 
 // ─── ICON ─────────────────────────────────────────────────────────────────────
-const Icon = ({ name, size=16, color="currentColor" }) => {
+const Icon = ({ name, size = 16, color = "currentColor" }) => {
   const p = {
-    dashboard:"M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+    dashboard: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
     materias: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
     horarios: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-    eventos:  "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    eventos: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
     archivos: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
-    asistente:"M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
-    edit:     "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
-    trash:    "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
-    plus:     "M12 4v16m8-8H4",
+    asistente: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
+    edit: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
+    trash: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
+    plus: "M12 4v16m8-8H4",
     chevronL: "M15 19l-7-7 7-7",
     chevronR: "M9 5l7 7-7 7",
-    upload:   "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12",
-    signal:   "M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0",
-    send:     "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
-    refresh:  "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-    logout:   "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
-    warn:     "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
-    bell:     "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    lock:     "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+    upload: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12",
+    signal: "M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0",
+    send: "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
+    refresh: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
+    logout: "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+    warn: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+    bell: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
+    lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d={p[name]}/>
+      <path d={p[name]} />
     </svg>
   );
 };
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
 function useIsMobile() {
-  const [m,setM]=useState(window.innerWidth<768);
-  useEffect(()=>{const fn=()=>setM(window.innerWidth<768);window.addEventListener("resize",fn);return()=>window.removeEventListener("resize",fn);},[]);
+  const [m, setM] = useState(window.innerWidth < 768);
+  useEffect(() => { const fn = () => setM(window.innerWidth < 768); window.addEventListener("resize", fn); return () => window.removeEventListener("resize", fn); }, []);
   return m;
 }
 
-function usePushNotifications(userId) {
-  const [estado,setEstado]=useState("idle"); // idle | solicitando | activo | denegado | no-soportado
-  const [swReg,setSwReg]=useState(null);
-
-  useEffect(()=>{
-    if(!userId) return;
-    if(!("serviceWorker" in navigator)||!("PushManager" in window)){
-      setEstado("no-soportado"); return;
-    }
-    // Registrar service worker
-    navigator.serviceWorker.register("/sw.js").then(reg=>{
-      setSwReg(reg);
-      // Ver si ya hay permiso
-      if(Notification.permission==="granted") setEstado("activo");
-      else if(Notification.permission==="denied") setEstado("denegado");
-    }).catch(()=>setEstado("no-soportado"));
-  },[userId]);
-
-  const suscribir=async()=>{
-    if(!swReg||!userId) return;
-    setEstado("solicitando");
-    try{
-      const permiso=await Notification.requestPermission();
-      if(permiso!=="granted"){ setEstado("denegado"); return; }
-
-      const sub=await swReg.pushManager.subscribe({
-        userVisibleOnly:true,
-        applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY),
-      });
-
-      await fetch("/api/notify?action=subscribe",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({subscription:sub.toJSON(),userId}),
-      });
-      setEstado("activo");
-    }catch(e){
-      console.error("Error suscribiendo:", e);
-      setEstado("denegado");
-    }
-  };
-
-  const desuscribir=async()=>{
-    if(!swReg) return;
-    try{
-      const sub=await swReg.pushManager.getSubscription();
-      if(sub){
-        await fetch("/api/notify",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})});
-        await sub.unsubscribe();
-      }
-      setEstado("idle");
-    }catch(e){ console.error("Error desuscribiendo:", e); }
-  };
-
-  // Enviar notificación de prueba
-  const probar=async()=>{
-    if(!userId) return;
-    await fetch("/api/notify?action=send",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({userId,title:"UTN Tracker",body:"Las notificaciones funcionan correctamente",url:"/"}),
-    });
-  };
-
-  return {estado,suscribir,desuscribir,probar};
-}
-
-// Convierte VAPID public key de base64 a Uint8Array
-function urlBase64ToUint8Array(base64String) {
-  const padding="=".repeat((4-base64String.length%4)%4);
-  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
-  const raw=window.atob(base64);
-  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
-}
 
 // ─── ESTILOS ─────────────────────────────────────────────────────────────────
 const G = `
@@ -200,11 +126,11 @@ const G = `
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 function ToastContainer({ toasts }) {
   return (
-    <div style={{position:"fixed",bottom:24,right:20,zIndex:999,display:"flex",flexDirection:"column",gap:8,pointerEvents:"none"}}>
-      {toasts.map(t=>(
-        <div key={t.id} style={{background:"#1e1a18",border:"1px solid rgba(192,80,77,0.4)",borderLeft:"3px solid var(--red)",borderRadius:8,padding:"11px 16px",maxWidth:320,display:"flex",alignItems:"center",gap:10,animation:"toastIn 0.25s ease",boxShadow:"0 4px 20px rgba(0,0,0,0.5)"}}>
-          <Icon name="warn" size={15} color="var(--red)"/>
-          <span style={{fontSize:12,color:"var(--text)",lineHeight:1.4}}>{t.msg}</span>
+    <div style={{ position: "fixed", bottom: 24, right: 20, zIndex: 999, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{ background: "#1e1a18", border: "1px solid rgba(192,80,77,0.4)", borderLeft: "3px solid var(--red)", borderRadius: 8, padding: "11px 16px", maxWidth: 320, display: "flex", alignItems: "center", gap: 10, animation: "toastIn 0.25s ease", boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }}>
+          <Icon name="warn" size={15} color="var(--red)" />
+          <span style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.4 }}>{t.msg}</span>
         </div>
       ))}
     </div>
@@ -212,48 +138,48 @@ function ToastContainer({ toasts }) {
 }
 
 function useToast() {
-  const [toasts,setToasts]=useState([]);
-  const show=useCallback((msg)=>{
-    const id=Date.now();
-    setToasts(t=>[...t,{id,msg}]);
-    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),4000);
-  },[]);
-  return {toasts,show};
+  const [toasts, setToasts] = useState([]);
+  const show = useCallback((msg) => {
+    const id = Date.now();
+    setToasts(t => [...t, { id, msg }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+  }, []);
+  return { toasts, show };
 }
 
 // ─── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
 function usePushNotifications(userId) {
-  const [estado,setEstado] = useState("idle"); // idle | solicitando | activo | denegado | no-soportado
-  const [sub,setSub]       = useState(null);
+  const [estado, setEstado] = useState("idle"); // idle | solicitando | activo | denegado | no-soportado
+  const [sub, setSub] = useState(null);
 
-  useEffect(()=>{
-    if(!("serviceWorker" in navigator) || !("PushManager" in window)){
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setEstado("no-soportado"); return;
     }
-    if(Notification.permission === "granted") verificarSuscripcion();
-    else if(Notification.permission === "denied") setEstado("denegado");
-  },[userId]);
+    if (Notification.permission === "granted") verificarSuscripcion();
+    else if (Notification.permission === "denied") setEstado("denegado");
+  }, [userId]);
 
   const verificarSuscripcion = async () => {
-    try{
+    try {
       const reg = await navigator.serviceWorker.ready;
       const existing = await reg.pushManager.getSubscription();
-      if(existing){ setSub(existing); setEstado("activo"); }
+      if (existing) { setSub(existing); setEstado("activo"); }
       else setEstado("idle");
-    }catch{ setEstado("idle"); }
+    } catch { setEstado("idle"); }
   };
 
   const activar = async () => {
-    if(!userId) return;
+    if (!userId) return;
     setEstado("solicitando");
-    try{
+    try {
       // Registrar service worker
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
 
       // Pedir permiso
       const permiso = await Notification.requestPermission();
-      if(permiso !== "granted"){ setEstado("denegado"); return; }
+      if (permiso !== "granted") { setEstado("denegado"); return; }
 
       // Suscribirse al push
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -264,30 +190,30 @@ function usePushNotifications(userId) {
 
       // Guardar suscripción en el servidor
       await fetch("/api/notify?action=subscribe", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription, userId }),
       });
 
       setSub(subscription);
       setEstado("activo");
-    }catch(e){
+    } catch (e) {
       console.error("Error activando push:", e);
       setEstado("idle");
     }
   };
 
   const desactivar = async () => {
-    if(!sub) return;
-    try{
+    if (!sub) return;
+    try {
       await fetch("/api/notify", {
-        method:"DELETE",
-        headers:{"Content-Type":"application/json"},
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: sub.endpoint }),
       });
       await sub.unsubscribe();
       setSub(null); setEstado("idle");
-    }catch(e){ console.error("Error desactivando push:", e); }
+    } catch (e) { console.error("Error desactivando push:", e); }
   };
 
   return { estado, activar, desactivar };
@@ -306,64 +232,64 @@ function useNotificaciones(materias, eventos) {
   return useMemo(() => {
     const notifs = [];
     const hoy = new Date();
-    const diasSem = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+    const diasSem = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
     const dHoy = diasSem[hoy.getDay()];
 
     // Materias de hoy
-    const matHoy = materias.filter(m => m.dias?.includes(dHoy) && ["cursando","regular"].includes(m.estado));
+    const matHoy = materias.filter(m => m.dias?.includes(dHoy) && ["cursando", "regular"].includes(m.estado));
     if (matHoy.length > 0) {
       notifs.push({
-        id:"hoy",
-        tipo:"info",
-        titulo:`${matHoy.length} ${matHoy.length===1?"materia":"materias"} hoy`,
-        detalle: matHoy.map(m=>`${m.horarios?.[dHoy]||m.horario||""} · ${m.nombre}`).join(" / "),
-        icon:"horarios",
+        id: "hoy",
+        tipo: "info",
+        titulo: `${matHoy.length} ${matHoy.length === 1 ? "materia" : "materias"} hoy`,
+        detalle: matHoy.map(m => `${m.horarios?.[dHoy] || m.horario || ""} · ${m.nombre}`).join(" / "),
+        icon: "horarios",
       });
     }
 
     // Eventos próximos (7 días)
-    eventos.filter(e=>{
-      const d=Math.ceil((new Date(e.fecha)-hoy)/86400000);
-      return d>=0&&d<=7;
-    }).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).forEach(ev=>{
-      const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
-      const mat=materias.find(m=>m.id===ev.materia_id);
-      const tipo=TIPO_EVENTO[ev.tipo];
+    eventos.filter(e => {
+      const d = Math.ceil((new Date(e.fecha) - hoy) / 86400000);
+      return d >= 0 && d <= 7;
+    }).sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).forEach(ev => {
+      const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
+      const mat = materias.find(m => m.id === ev.materia_id);
+      const tipo = TIPO_EVENTO[ev.tipo];
       notifs.push({
-        id:`ev_${ev.id}`,
-        tipo: d<=1?"urgente":"aviso",
-        titulo: d===0?`Hoy: ${ev.titulo}`: d===1?`Mañana: ${ev.titulo}`:`En ${d}d: ${ev.titulo}`,
-        detalle: `${mat?.nombre||""}${ev.descripcion?" · "+ev.descripcion:""}`,
+        id: `ev_${ev.id}`,
+        tipo: d <= 1 ? "urgente" : "aviso",
+        titulo: d === 0 ? `Hoy: ${ev.titulo}` : d === 1 ? `Mañana: ${ev.titulo}` : `En ${d}d: ${ev.titulo}`,
+        detalle: `${mat?.nombre || ""}${ev.descripcion ? " · " + ev.descripcion : ""}`,
         color: tipo?.color,
-        icon:"eventos",
+        icon: "eventos",
       });
     });
 
     // Materias libres (recordatorio)
-    const libres = materias.filter(m=>m.estado==="libre");
+    const libres = materias.filter(m => m.estado === "libre");
     if (libres.length > 0) {
       notifs.push({
-        id:"libres",
-        tipo:"warning",
-        titulo:`${libres.length} ${libres.length===1?"materia libre":"materias libres"} para recursar`,
-        detalle: libres.map(m=>m.nombre).join(", "),
-        icon:"warn",
+        id: "libres",
+        tipo: "warning",
+        titulo: `${libres.length} ${libres.length === 1 ? "materia libre" : "materias libres"} para recursar`,
+        detalle: libres.map(m => m.nombre).join(", "),
+        icon: "warn",
       });
     }
 
     // Finales próximos (30 días)
-    const finales=eventos.filter(e=>{
-      const d=Math.ceil((new Date(e.fecha)-hoy)/86400000);
-      return e.tipo==="final"&&d>=0&&d<=30;
+    const finales = eventos.filter(e => {
+      const d = Math.ceil((new Date(e.fecha) - hoy) / 86400000);
+      return e.tipo === "final" && d >= 0 && d <= 30;
     });
-    if(finales.length>0){
+    if (finales.length > 0) {
       notifs.push({
-        id:"finales",
-        tipo:"aviso",
-        titulo:`${finales.length} ${finales.length===1?"final":"finales"} en los próximos 30 días`,
-        detalle: finales.map(e=>{const d=Math.ceil((new Date(e.fecha)-hoy)/86400000);return `${e.titulo} (${d===0?"hoy":d+"d"})`;}).join(", "),
-        icon:"eventos",
-        color:"#f87171",
+        id: "finales",
+        tipo: "aviso",
+        titulo: `${finales.length} ${finales.length === 1 ? "final" : "finales"} en los próximos 30 días`,
+        detalle: finales.map(e => { const d = Math.ceil((new Date(e.fecha) - hoy) / 86400000); return `${e.titulo} (${d === 0 ? "hoy" : d + "d"})`; }).join(", "),
+        icon: "eventos",
+        color: "#f87171",
       });
     }
 
@@ -374,34 +300,34 @@ function useNotificaciones(materias, eventos) {
 function PanelNotificaciones({ materias, eventos, onClose }) {
   const notifs = useNotificaciones(materias, eventos);
   const colores = {
-    urgente: { bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.35)", color:"#f87171" },
-    aviso:   { bg:"rgba(74,144,217,0.1)",  border:"rgba(74,144,217,0.3)",   color:"#4a90d9" },
-    info:    { bg:"rgba(110,231,183,0.08)",border:"rgba(110,231,183,0.25)", color:"#6ee7b7" },
-    warning: { bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)",  color:"#fbbf24" },
+    urgente: { bg: "rgba(248,113,113,0.1)", border: "rgba(248,113,113,0.35)", color: "#f87171" },
+    aviso: { bg: "rgba(74,144,217,0.1)", border: "rgba(74,144,217,0.3)", color: "#4a90d9" },
+    info: { bg: "rgba(110,231,183,0.08)", border: "rgba(110,231,183,0.25)", color: "#6ee7b7" },
+    warning: { bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.25)", color: "#fbbf24" },
   };
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
-      onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="card fade-in" style={{width:"100%",maxWidth:440,margin:"auto",padding:0,overflow:"hidden"}}>
-        <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Icon name="bell" size={16} color="var(--blue)"/>
-            <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>Notificaciones</span>
-            {notifs.length>0&&<span style={{background:"var(--blue)",color:"#fff",borderRadius:10,fontSize:10,fontWeight:700,padding:"1px 7px"}}>{notifs.length}</span>}
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card fade-in" style={{ width: "100%", maxWidth: 440, margin: "auto", padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon name="bell" size={16} color="var(--blue)" />
+            <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 17, fontWeight: 700 }}>Notificaciones</span>
+            {notifs.length > 0 && <span style={{ background: "var(--blue)", color: "#fff", borderRadius: 10, fontSize: 10, fontWeight: 700, padding: "1px 7px" }}>{notifs.length}</span>}
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,cursor:"pointer",padding:4}}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 20, cursor: "pointer", padding: 4 }}>×</button>
         </div>
-        <div style={{maxHeight:"70vh",overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
-          {notifs.length===0?(
-            <div style={{textAlign:"center",padding:"32px 0",color:"var(--text2)",fontSize:13}}>
+        <div style={{ maxHeight: "70vh", overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {notifs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--text2)", fontSize: 13 }}>
               Sin notificaciones por ahora
             </div>
-          ):notifs.map(n=>{
-            const c=colores[n.tipo]||colores.info;
-            return(
-              <div key={n.id} style={{background:c.bg,border:`1px solid ${n.color||c.border}22`,borderLeft:`3px solid ${n.color||c.color}`,borderRadius:8,padding:"11px 14px"}}>
-                <div style={{fontSize:13,fontWeight:600,color:n.color||c.color,marginBottom:3}}>{n.titulo}</div>
-                {n.detalle&&<div style={{fontSize:11,color:"var(--text2)",lineHeight:1.5}}>{n.detalle}</div>}
+          ) : notifs.map(n => {
+            const c = colores[n.tipo] || colores.info;
+            return (
+              <div key={n.id} style={{ background: c.bg, border: `1px solid ${n.color || c.border}22`, borderLeft: `3px solid ${n.color || c.color}`, borderRadius: 8, padding: "11px 14px" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: n.color || c.color, marginBottom: 3 }}>{n.titulo}</div>
+                {n.detalle && <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>{n.detalle}</div>}
               </div>
             );
           })}
@@ -414,44 +340,44 @@ function PanelNotificaciones({ materias, eventos, onClose }) {
 // ─── BLOQUEO ASISTENTE IA ─────────────────────────────────────────────────────
 function BloqueadoIA() {
   return (
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:360,gap:20,padding:32,textAlign:"center"}}>
-      <div style={{width:56,height:56,borderRadius:14,background:"var(--surface2)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-        <Icon name="lock" size={24} color="var(--text3)"/>
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 360, gap: 20, padding: 32, textAlign: "center" }}>
+      <div style={{ width: 56, height: 56, borderRadius: 14, background: "var(--surface2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon name="lock" size={24} color="var(--text3)" />
       </div>
       <div>
-        <div style={{fontFamily:"'Barlow Condensed'",fontSize:20,fontWeight:700,marginBottom:8}}>Asistente IA no activado</div>
-        <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.7,maxWidth:320}}>
+        <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Asistente IA no activado</div>
+        <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7, maxWidth: 320 }}>
           Esta función requiere activación. Contactá al desarrollador para obtener acceso al asistente de estudio con IA.
         </div>
       </div>
       <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer" style={{
-        background:"var(--blue)",color:"#fff",borderRadius:8,padding:"10px 24px",
-        fontSize:13,fontWeight:600,textDecoration:"none",display:"flex",alignItems:"center",gap:8,
-        transition:"background 0.2s"
+        background: "var(--blue)", color: "#fff", borderRadius: 8, padding: "10px 24px",
+        fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 8,
+        transition: "background 0.2s"
       }}
-        onMouseEnter={e=>e.currentTarget.style.background="var(--blue2)"}
-        onMouseLeave={e=>e.currentTarget.style.background="var(--blue)"}>
+        onMouseEnter={e => e.currentTarget.style.background = "var(--blue2)"}
+        onMouseLeave={e => e.currentTarget.style.background = "var(--blue)"}>
         Contactar en frazk.lol
       </a>
     </div>
   );
 }
-function ConfirmModal({nombre,onConfirm,onClose}){
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
-      onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="card fade-in" style={{maxWidth:360,width:"100%",padding:24}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-          <Icon name="warn" size={20} color="var(--red)"/>
-          <span style={{fontFamily:"'Barlow Condensed'",fontSize:16,fontWeight:700}}>Confirmar eliminación</span>
+function ConfirmModal({ nombre, onConfirm, onClose }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card fade-in" style={{ maxWidth: 360, width: "100%", padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <Icon name="warn" size={20} color="var(--red)" />
+          <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, fontWeight: 700 }}>Confirmar eliminación</span>
         </div>
-        <p style={{fontSize:13,color:"var(--text2)",lineHeight:1.6,marginBottom:20}}>
-          ¿Eliminar <strong style={{color:"var(--text)"}}>{nombre}</strong>? Esta acción no se puede deshacer.
+        <p style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6, marginBottom: 20 }}>
+          ¿Eliminar <strong style={{ color: "var(--text)" }}>{nombre}</strong>? Esta acción no se puede deshacer.
         </p>
-        <div style={{display:"flex",gap:8}}>
-          <button className="btn-ghost" style={{flex:1,justifyContent:"center"}} onClick={onClose}>Cancelar</button>
-          <button style={{flex:1,padding:"8px",borderRadius:"var(--radius)",border:"none",background:"var(--red)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={onConfirm}>
-            <Icon name="trash" size={13} color="#fff"/>Eliminar
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>Cancelar</button>
+          <button style={{ flex: 1, padding: "8px", borderRadius: "var(--radius)", border: "none", background: "var(--red)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} onClick={onConfirm}>
+            <Icon name="trash" size={13} color="#fff" />Eliminar
           </button>
         </div>
       </div>
@@ -460,93 +386,95 @@ function ConfirmModal({nombre,onConfirm,onClose}){
 }
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
-function Modal({title,onClose,children,width=520}){
-  const innerRef=useRef(null);
-  useEffect(()=>{
-    const fn=e=>e.key==="Escape"&&onClose();
-    window.addEventListener("keydown",fn);
-    setTimeout(()=>{
-      const first=innerRef.current?.querySelector("input,select,textarea");
-      if(first) first.focus();
-    },50);
-    return()=>window.removeEventListener("keydown",fn);
-  },[onClose]);
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,
-      display:"flex",alignItems:"flex-start",justifyContent:"center",
-      padding:"20px 16px",overflowY:"auto"}}
-      onClick={e=>e.target===e.currentTarget&&onClose()}>
+function Modal({ title, onClose, children, width = 520 }) {
+  const innerRef = useRef(null);
+  useEffect(() => {
+    const fn = e => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", fn);
+    setTimeout(() => {
+      const first = innerRef.current?.querySelector("input,select,textarea");
+      if (first) first.focus();
+    }, 50);
+    return () => window.removeEventListener("keydown", fn);
+  }, [onClose]);
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200,
+      display: "flex", alignItems: "flex-start", justifyContent: "center",
+      padding: "20px 16px", overflowY: "auto"
+    }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
       <div ref={innerRef} className="card fade-in" style={{
-        width:"100%",maxWidth:width,
-        display:"flex",flexDirection:"column",
-        position:"relative",marginTop:"auto",marginBottom:"auto",
-        flexShrink:0,
+        width: "100%", maxWidth: width,
+        display: "flex", flexDirection: "column",
+        position: "relative", marginTop: "auto", marginBottom: "auto",
+        flexShrink: 0,
       }}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px 0",flexShrink:0}}>
-          <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>{title}</span>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,lineHeight:1,padding:4,cursor:"pointer"}}>×</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px 0", flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 17, fontWeight: 700 }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 20, lineHeight: 1, padding: 4, cursor: "pointer" }}>×</button>
         </div>
-        <div style={{padding:"16px 24px 24px"}}>
+        <div style={{ padding: "16px 24px 24px" }}>
           {children}
         </div>
       </div>
     </div>
   );
 }
-function Lbl({children}){return <label style={{fontSize:11,color:"var(--text2)",marginBottom:5,display:"block",fontWeight:500}}>{children}</label>;}
-function Spinner(){return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40,color:"var(--text2)",fontSize:13,gap:10}}><div style={{width:18,height:18,border:"2px solid var(--border2)",borderTop:"2px solid var(--blue)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Cargando...</div>;}
+function Lbl({ children }) { return <label style={{ fontSize: 11, color: "var(--text2)", marginBottom: 5, display: "block", fontWeight: 500 }}>{children}</label>; }
+function Spinner() { return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40, color: "var(--text2)", fontSize: 13, gap: 10 }}><div style={{ width: 18, height: 18, border: "2px solid var(--border2)", borderTop: "2px solid var(--blue)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Cargando...</div>; }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
-function AuthPage({onAuth}){
-  const [modo,setModo]=useState("login");
-  const [email,setEmail]=useState("");
-  const [pass,setPass]=useState("");
-  const [nombre,setNombre]=useState("");
-  const [err,setErr]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [ok,setOk]=useState(false);
-  const submit=async()=>{
-    setErr("");setLoading(true);
-    if(modo==="login"){
-      const {error}=await sb.auth.signInWithPassword({email,password:pass});
-      if(error)setErr(error.message);else onAuth();
-    }else{
-      const {error}=await sb.auth.signUp({email,password:pass,options:{data:{nombre}}});
-      if(error)setErr(error.message);else setOk(true);
+function AuthPage({ onAuth }) {
+  const [modo, setModo] = useState("login");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [ok, setOk] = useState(false);
+  const submit = async () => {
+    setErr(""); setLoading(true);
+    if (modo === "login") {
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (error) setErr(error.message); else onAuth();
+    } else {
+      const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { nombre } } });
+      if (error) setErr(error.message); else setOk(true);
     }
     setLoading(false);
   };
-  return(
-    <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <style>{G}</style>
-      <div className="card" style={{width:"100%",maxWidth:380,padding:32}}>
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{width:44,height:44,background:"var(--blue)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed'",fontWeight:800,color:"#fff",fontSize:22,margin:"0 auto 12px"}}>U</div>
-          <div style={{fontFamily:"'Barlow Condensed'",fontWeight:800,fontSize:22,letterSpacing:0.5}}>UTN TRACKER</div>
-          <div style={{fontSize:11,color:"var(--text3)",letterSpacing:1.5,marginTop:2}}>SISTEMAS · TUC</div>
+      <div className="card" style={{ width: "100%", maxWidth: 380, padding: 32 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ width: 44, height: 44, background: "var(--blue)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontWeight: 800, color: "#fff", fontSize: 22, margin: "0 auto 12px" }}>U</div>
+          <div style={{ fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 22, letterSpacing: 0.5 }}>UTN TRACKER</div>
+          <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: 1.5, marginTop: 2 }}>SISTEMAS · TUC</div>
         </div>
-        {ok?(
-          <div style={{textAlign:"center",color:"var(--text2)",fontSize:13,lineHeight:1.6}}>
-            <div style={{fontSize:28,marginBottom:12,color:"var(--green)"}}>✓</div>
+        {ok ? (
+          <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 13, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 28, marginBottom: 12, color: "var(--green)" }}>✓</div>
             Revisá tu email para confirmar la cuenta y luego iniciá sesión.
-            <button className="btn-ghost" style={{marginTop:16,width:"100%",justifyContent:"center"}} onClick={()=>{setOk(false);setModo("login");}}>Ir al login</button>
+            <button className="btn-ghost" style={{ marginTop: 16, width: "100%", justifyContent: "center" }} onClick={() => { setOk(false); setModo("login"); }}>Ir al login</button>
           </div>
-        ):(
+        ) : (
           <>
-            <div style={{display:"flex",gap:6,marginBottom:20,background:"var(--surface2)",borderRadius:8,padding:4}}>
-              {["login","registro"].map(m=>(
-                <button key={m} onClick={()=>{setModo(m);setErr("");}} style={{flex:1,padding:"7px",borderRadius:6,border:"none",background:modo===m?"var(--blue)":"transparent",color:modo===m?"#fff":"var(--text2)",fontSize:13,fontWeight:modo===m?600:400,transition:"all 0.15s"}}>
-                  {m==="login"?"Iniciar sesión":"Registrarse"}
+            <div style={{ display: "flex", gap: 6, marginBottom: 20, background: "var(--surface2)", borderRadius: 8, padding: 4 }}>
+              {["login", "registro"].map(m => (
+                <button key={m} onClick={() => { setModo(m); setErr(""); }} style={{ flex: 1, padding: "7px", borderRadius: 6, border: "none", background: modo === m ? "var(--blue)" : "transparent", color: modo === m ? "#fff" : "var(--text2)", fontSize: 13, fontWeight: modo === m ? 600 : 400, transition: "all 0.15s" }}>
+                  {m === "login" ? "Iniciar sesión" : "Registrarse"}
                 </button>
               ))}
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {modo==="registro"&&<div><Lbl>Nombre</Lbl><input style={{width:"100%"}} value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre"/></div>}
-              <div><Lbl>Email</Lbl><input style={{width:"100%"}} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com"/></div>
-              <div><Lbl>Contraseña</Lbl><input style={{width:"100%"}} type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&submit()}/></div>
-              {err&&<div style={{fontSize:12,color:"var(--red)",background:"rgba(192,80,77,0.1)",padding:"8px 12px",borderRadius:6}}>{err}</div>}
-              <button className="btn-primary" style={{width:"100%",justifyContent:"center",marginTop:4,opacity:loading?0.6:1}} onClick={submit} disabled={loading}>
-                {loading?"Cargando...":(modo==="login"?"Entrar":"Crear cuenta")}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {modo === "registro" && <div><Lbl>Nombre</Lbl><input style={{ width: "100%" }} value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Tu nombre" /></div>}
+              <div><Lbl>Email</Lbl><input style={{ width: "100%" }} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" /></div>
+              <div><Lbl>Contraseña</Lbl><input style={{ width: "100%" }} type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && submit()} /></div>
+              {err && <div style={{ fontSize: 12, color: "var(--red)", background: "rgba(192,80,77,0.1)", padding: "8px 12px", borderRadius: 6 }}>{err}</div>}
+              <button className="btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 4, opacity: loading ? 0.6 : 1 }} onClick={submit} disabled={loading}>
+                {loading ? "Cargando..." : (modo === "login" ? "Entrar" : "Crear cuenta")}
               </button>
             </div>
           </>
@@ -557,73 +485,73 @@ function AuthPage({onAuth}){
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function Dashboard({materias,eventos}){
-  const hoy=new Date();
-  const stats=useMemo(()=>{
-    const total=materias.length;
-    const aprobadas=materias.filter(m=>m.estado==="aprobada_final"||m.estado==="promocionada").length;
-    const cursando=materias.filter(m=>m.estado==="cursando").length;
-    const regulares=materias.filter(m=>m.estado==="regular").length;
-    const libres=materias.filter(m=>m.estado==="libre").length;
-    const notas=materias.filter(m=>m.nota).map(m=>m.nota);
-    const promedio=notas.length?(notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(1):"—";
-    const progreso=total?Math.round((aprobadas/total)*100):0;
-    return{total,aprobadas,cursando,regulares,libres,promedio,progreso};
-  },[materias]);
-  const prox=eventos.filter(e=>new Date(e.fecha)>=hoy).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).slice(0,5);
-  const dR=f=>{const d=Math.ceil((new Date(f)-hoy)/86400000);return d===0?"Hoy":d===1?"Mañana":`${d}d`;};
-  const SC=({label,value,sub,accent="var(--text)"})=>(
-    <div className="card" style={{padding:"16px 18px"}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"var(--text3)",marginBottom:5}}>{label}</div>
-      <div style={{fontFamily:"'Barlow Condensed'",fontSize:34,fontWeight:800,color:accent,lineHeight:1}}>{value}</div>
-      {sub&&<div style={{fontSize:11,color:"var(--text2)",marginTop:3}}>{sub}</div>}
+function Dashboard({ materias, eventos }) {
+  const hoy = new Date();
+  const stats = useMemo(() => {
+    const total = materias.length;
+    const aprobadas = materias.filter(m => m.estado === "aprobada_final" || m.estado === "promocionada").length;
+    const cursando = materias.filter(m => m.estado === "cursando").length;
+    const regulares = materias.filter(m => m.estado === "regular").length;
+    const libres = materias.filter(m => m.estado === "libre").length;
+    const notas = materias.filter(m => m.nota).map(m => m.nota);
+    const promedio = notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : "—";
+    const progreso = total ? Math.round((aprobadas / total) * 100) : 0;
+    return { total, aprobadas, cursando, regulares, libres, promedio, progreso };
+  }, [materias]);
+  const prox = eventos.filter(e => new Date(e.fecha) >= hoy).sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).slice(0, 5);
+  const dR = f => { const d = Math.ceil((new Date(f) - hoy) / 86400000); return d === 0 ? "Hoy" : d === 1 ? "Mañana" : `${d}d`; };
+  const SC = ({ label, value, sub, accent = "var(--text)" }) => (
+    <div className="card" style={{ padding: "16px 18px" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "var(--text3)", marginBottom: 5 }}>{label}</div>
+      <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 34, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 3 }}>{sub}</div>}
     </div>
   );
-  const diasSem=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  const dHoy=diasSem[hoy.getDay()];
-  const matHoy=materias.filter(m=>m.dias?.includes(dHoy)&&["cursando","regular"].includes(m.estado));
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:20}}>
-      <p style={{color:"var(--text2)",fontSize:13}}>Resumen de tu situación académica.</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:9}}>
-        <SC label="Progreso" value={`${stats.progreso}%`} sub={`${stats.aprobadas} de ${stats.total}`} accent="var(--blue)"/>
-        <SC label="Cursando" value={stats.cursando} sub="activas" accent="var(--blue)"/>
-        <SC label="Regulares" value={stats.regulares} sub="para final" accent="var(--slate)"/>
-        <SC label="Libres" value={stats.libres} sub="a recursar" accent="var(--red)"/>
-        <SC label="Promedio" value={stats.promedio} sub="notas"/>
+  const diasSem = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const dHoy = diasSem[hoy.getDay()];
+  const matHoy = materias.filter(m => m.dias?.includes(dHoy) && ["cursando", "regular"].includes(m.estado));
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <p style={{ color: "var(--text2)", fontSize: 13 }}>Resumen de tu situación académica.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 9 }}>
+        <SC label="Progreso" value={`${stats.progreso}%`} sub={`${stats.aprobadas} de ${stats.total}`} accent="var(--blue)" />
+        <SC label="Cursando" value={stats.cursando} sub="activas" accent="var(--blue)" />
+        <SC label="Regulares" value={stats.regulares} sub="para final" accent="var(--slate)" />
+        <SC label="Libres" value={stats.libres} sub="a recursar" accent="var(--red)" />
+        <SC label="Promedio" value={stats.promedio} sub="notas" />
       </div>
-      <div className="card" style={{padding:"16px 18px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:9}}>
-          <span style={{fontSize:13,fontWeight:600}}>Avance de carrera</span>
-          <span style={{fontFamily:"'DM Mono'",fontSize:12,color:"var(--blue)"}}>{stats.aprobadas}/{stats.total}</span>
+      <div className="card" style={{ padding: "16px 18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Avance de carrera</span>
+          <span style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)" }}>{stats.aprobadas}/{stats.total}</span>
         </div>
-        <div style={{background:"var(--surface3)",borderRadius:3,height:5}}>
-          <div style={{height:"100%",width:`${stats.progreso}%`,background:"var(--blue)",borderRadius:3,transition:"width 0.6s"}}/>
+        <div style={{ background: "var(--surface3)", borderRadius: 3, height: 5 }}>
+          <div style={{ height: "100%", width: `${stats.progreso}%`, background: "var(--blue)", borderRadius: 3, transition: "width 0.6s" }} />
         </div>
-        <div style={{display:"flex",gap:7,marginTop:12,flexWrap:"wrap"}}>
-          {Object.entries(ESTADOS).map(([k,v])=>{const c=materias.filter(m=>m.estado===k).length;return c?<span key={k} className="tag" style={{background:v.bg,color:v.color}}>{v.label} {c}</span>:null;})}
+        <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
+          {Object.entries(ESTADOS).map(([k, v]) => { const c = materias.filter(m => m.estado === k).length; return c ? <span key={k} className="tag" style={{ background: v.bg, color: v.color }}>{v.label} {c}</span> : null; })}
         </div>
       </div>
-      {prox.length>0&&(
+      {prox.length > 0 && (
         <div>
           <p className="section-title">Próximos eventos</p>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {prox.map(ev=>{
-              const mat=materias.find(m=>m.id===ev.materia_id);
-              const tipo=TIPO_EVENTO[ev.tipo];
-              return(
-                <div key={ev.id} className="card" style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:11}}>
-                  <div style={{width:3,height:34,borderRadius:2,background:tipo.color,flexShrink:0}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2,flexWrap:"wrap"}}>
-                      <span style={{fontSize:13,fontWeight:600}}>{ev.titulo}</span>
-                      <span className="tag" style={{background:`${tipo.color}18`,color:tipo.color}}>{tipo.label}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {prox.map(ev => {
+              const mat = materias.find(m => m.id === ev.materia_id);
+              const tipo = TIPO_EVENTO[ev.tipo];
+              return (
+                <div key={ev.id} className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11 }}>
+                  <div style={{ width: 3, height: 34, borderRadius: 2, background: tipo.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{ev.titulo}</span>
+                      <span className="tag" style={{ background: `${tipo.color}18`, color: tipo.color }}>{tipo.label}</span>
                     </div>
-                    <span style={{fontSize:11,color:"var(--text2)"}}>{mat?.nombre}{ev.descripcion&&` · ${ev.descripcion}`}</span>
+                    <span style={{ fontSize: 11, color: "var(--text2)" }}>{mat?.nombre}{ev.descripcion && ` · ${ev.descripcion}`}</span>
                   </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontFamily:"'DM Mono'",fontSize:12,color:"var(--blue)",fontWeight:500}}>{dR(ev.fecha)}</div>
-                    <div style={{fontSize:10,color:"var(--text3)",marginTop:1}}>{new Date(ev.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"2-digit",month:"short"})}</div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)", fontWeight: 500 }}>{dR(ev.fecha)}</div>
+                    <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{new Date(ev.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}</div>
                   </div>
                 </div>
               );
@@ -633,20 +561,22 @@ function Dashboard({materias,eventos}){
       )}
       <div>
         <p className="section-title">Hoy — {dHoy}</p>
-        {matHoy.length===0?<div className="card" style={{padding:14,color:"var(--text2)",fontSize:13}}>No hay clases cargadas para hoy</div>:(
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {matHoy.sort((a,b)=>{
-              const ha=a.horarios?.[dHoy]||a.horario||"";
-              const hb=b.horarios?.[dHoy]||b.horario||"";
+        {matHoy.length === 0 ? <div className="card" style={{ padding: 14, color: "var(--text2)", fontSize: 13 }}>No hay clases cargadas para hoy</div> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {matHoy.sort((a, b) => {
+              const ha = a.horarios?.[dHoy] || a.horario || "";
+              const hb = b.horarios?.[dHoy] || b.horario || "";
               return ha.localeCompare(hb);
-            }).map(m=>{const est=ESTADOS[m.estado];const horHoy=m.horarios?.[dHoy]||m.horario||"";return(
-              <div key={m.id} className="card" style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:11}}>
-                <span style={{fontFamily:"'DM Mono'",fontSize:12,color:"var(--blue)",minWidth:44}}>{horHoy}</span>
-                <span style={{flex:1,fontSize:13,fontWeight:500}}>{m.nombre}</span>
-                <span style={{fontSize:11,color:"var(--text2)"}}>Aula {m.aula}</span>
-                <span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>
-              </div>
-            );})}
+            }).map(m => {
+              const est = ESTADOS[m.estado]; const horHoy = m.horarios?.[dHoy] || m.horario || ""; return (
+                <div key={m.id} className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 11 }}>
+                  <span style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)", minWidth: 44 }}>{horHoy}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{m.nombre}</span>
+                  <span style={{ fontSize: 11, color: "var(--text2)" }}>Aula {m.aula}</span>
+                  <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -655,88 +585,90 @@ function Dashboard({materias,eventos}){
 }
 
 // ─── MATERIAS ─────────────────────────────────────────────────────────────────
-function FormMateria({initial,onSave,onClose}){
-  const [f,setF]=useState(()=>{
-    const base=initial||{nombre:"",año:1,cuatrimestre:1,estado:"pendiente",nota:"",hs:4,dias:[],horarios:{},aula:""};
+function FormMateria({ initial, onSave, onClose }) {
+  const [f, setF] = useState(() => {
+    const base = initial || { nombre: "", año: 1, cuatrimestre: 1, estado: "pendiente", nota: "", hs: 4, dias: [], horarios: {}, aula: "" };
     // compatibilidad con datos viejos que tienen campo horario plano
-    if(initial&&initial.horario&&!initial.horarios){
-      const h={};
-      (initial.dias||[]).forEach(d=>{ h[d]=initial.horario; });
-      return {...base, horarios:h};
+    if (initial && initial.horario && !initial.horarios) {
+      const h = {};
+      (initial.dias || []).forEach(d => { h[d] = initial.horario; });
+      return { ...base, horarios: h };
     }
-    return {...base, horarios: base.horarios||{}};
+    return { ...base, horarios: base.horarios || {} };
   });
-  const [errs,setErrs]=useState({});
-  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const [errs, setErrs] = useState({});
+  const s = (k, v) => setF(p => ({ ...p, [k]: v }));
 
-  const tD=d=>{
-    const diasActuales=f.dias||[];
-    if(diasActuales.includes(d)){
-      const nuevosDias=diasActuales.filter(x=>x!==d);
-      const nuevosHorarios={...f.horarios};
+  const tD = d => {
+    const diasActuales = f.dias || [];
+    if (diasActuales.includes(d)) {
+      const nuevosDias = diasActuales.filter(x => x !== d);
+      const nuevosHorarios = { ...f.horarios };
       delete nuevosHorarios[d];
-      setF(p=>({...p,dias:nuevosDias,horarios:nuevosHorarios}));
+      setF(p => ({ ...p, dias: nuevosDias, horarios: nuevosHorarios }));
     } else {
-      setF(p=>({...p,dias:[...diasActuales,d],horarios:{...p.horarios,[d]:HORAS[4]}}));
+      setF(p => ({ ...p, dias: [...diasActuales, d], horarios: { ...p.horarios, [d]: HORAS[4] } }));
     }
   };
 
-  const setHorarioDia=(dia,hora)=>setF(p=>({...p,horarios:{...p.horarios,[dia]:hora}}));
+  const setHorarioDia = (dia, hora) => setF(p => ({ ...p, horarios: { ...p.horarios, [dia]: hora } }));
 
-  const nN=["aprobada_final","promocionada","regular"].includes(f.estado);
+  const nN = ["aprobada_final", "promocionada", "regular"].includes(f.estado);
 
-  const validar=()=>{
-    const e={};
-    if(!f.nombre.trim()) e.nombre="El nombre es requerido";
-    if(nN&&f.nota!==""){
-      const n=Number(f.nota);
-      if(isNaN(n)||n<1||n>10) e.nota="La nota debe ser entre 1 y 10";
+  const validar = () => {
+    const e = {};
+    if (!f.nombre.trim()) e.nombre = "El nombre es requerido";
+    if (nN && f.nota !== "") {
+      const n = Number(f.nota);
+      if (isNaN(n) || n < 1 || n > 10) e.nota = "La nota debe ser entre 1 y 10";
     }
     setErrs(e);
-    return Object.keys(e).length===0;
+    return Object.keys(e).length === 0;
   };
 
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:13}}>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
       <div>
         <Lbl>Nombre</Lbl>
-        <input style={{width:"100%",borderColor:errs.nombre?"var(--red)":undefined}} value={f.nombre} onChange={e=>{s("nombre",e.target.value);setErrs(p=>({...p,nombre:""}));}} placeholder="Ej: Algoritmos y Estructura de Datos"/>
-        {errs.nombre&&<div className="field-error">{errs.nombre}</div>}
+        <input style={{ width: "100%", borderColor: errs.nombre ? "var(--red)" : undefined }} value={f.nombre} onChange={e => { s("nombre", e.target.value); setErrs(p => ({ ...p, nombre: "" })); }} placeholder="Ej: Algoritmos y Estructura de Datos" />
+        {errs.nombre && <div className="field-error">{errs.nombre}</div>}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
-        <div><Lbl>Año</Lbl><select style={{width:"100%"}} value={f.año} onChange={e=>s("año",+e.target.value)}>{[1,2,3,4,5].map(n=><option key={n}>{n}</option>)}</select></div>
-        <div><Lbl>Cuatrimestre</Lbl><select style={{width:"100%"}} value={f.cuatrimestre} onChange={e=>s("cuatrimestre",+e.target.value)}><option value={1}>1°</option><option value={2}>2°</option></select></div>
-        <div><Lbl>Hs/sem</Lbl><input type="number" style={{width:"100%"}} value={f.hs} onChange={e=>s("hs",+e.target.value)} min={1} max={12}/></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 9 }}>
+        <div><Lbl>Año</Lbl><select style={{ width: "100%" }} value={f.año} onChange={e => s("año", +e.target.value)}>{[1, 2, 3, 4, 5].map(n => <option key={n}>{n}</option>)}</select></div>
+        <div><Lbl>Cuatrimestre</Lbl><select style={{ width: "100%" }} value={f.cuatrimestre} onChange={e => s("cuatrimestre", +e.target.value)}><option value={1}>1°</option><option value={2}>2°</option></select></div>
+        <div><Lbl>Hs/sem</Lbl><input type="number" style={{ width: "100%" }} value={f.hs} onChange={e => s("hs", +e.target.value)} min={1} max={12} /></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-        <div><Lbl>Estado</Lbl><select style={{width:"100%"}} value={f.estado} onChange={e=>s("estado",e.target.value)}>{Object.entries(ESTADOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
-        {nN&&<div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+        <div><Lbl>Estado</Lbl><select style={{ width: "100%" }} value={f.estado} onChange={e => s("estado", e.target.value)}>{Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+        {nN && <div>
           <Lbl>Nota</Lbl>
-          <input type="number" style={{width:"100%",borderColor:errs.nota?"var(--red)":undefined}} value={f.nota||""} onChange={e=>{s("nota",e.target.value);setErrs(p=>({...p,nota:""}));}} min={1} max={10} placeholder="1–10"/>
-          {errs.nota&&<div className="field-error">{errs.nota}</div>}
+          <input type="number" style={{ width: "100%", borderColor: errs.nota ? "var(--red)" : undefined }} value={f.nota || ""} onChange={e => { s("nota", e.target.value); setErrs(p => ({ ...p, nota: "" })); }} min={1} max={10} placeholder="1–10" />
+          {errs.nota && <div className="field-error">{errs.nota}</div>}
         </div>}
       </div>
 
       {/* Días con horario individual */}
       <div>
         <Lbl>Días y horarios de cursado</Lbl>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
-          {DIAS_SEMANA.map(d=>(
-            <button key={d} onClick={()=>tD(d)} style={{padding:"5px 10px",borderRadius:5,fontSize:12,
-              border:`1px solid ${f.dias?.includes(d)?"var(--blue)":"var(--border)"}`,
-              background:f.dias?.includes(d)?"var(--blue-dim)":"transparent",
-              color:f.dias?.includes(d)?"var(--blue)":"var(--text2)",transition:"all 0.15s"}}>{d}</button>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+          {DIAS_SEMANA.map(d => (
+            <button key={d} onClick={() => tD(d)} style={{
+              padding: "5px 10px", borderRadius: 5, fontSize: 12,
+              border: `1px solid ${f.dias?.includes(d) ? "var(--blue)" : "var(--border)"}`,
+              background: f.dias?.includes(d) ? "var(--blue-dim)" : "transparent",
+              color: f.dias?.includes(d) ? "var(--blue)" : "var(--text2)", transition: "all 0.15s"
+            }}>{d}</button>
           ))}
         </div>
         {/* Selector de hora por día seleccionado */}
-        {f.dias?.length>0&&(
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>
-            {f.dias.map(d=>(
-              <div key={d} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface2)",borderRadius:7,padding:"8px 12px"}}>
-                <span style={{fontSize:12,fontWeight:600,color:"var(--blue)",minWidth:80}}>{d}</span>
-                <select value={f.horarios?.[d]||HORAS[4]} onChange={e=>setHorarioDia(d,e.target.value)}
-                  style={{flex:1,fontSize:12,padding:"5px 8px"}}>
-                  {HORAS.map(h=><option key={h}>{h}</option>)}
+        {f.dias?.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {f.dias.map(d => (
+              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 7, padding: "8px 12px" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--blue)", minWidth: 80 }}>{d}</span>
+                <select value={f.horarios?.[d] || HORAS[4]} onChange={e => setHorarioDia(d, e.target.value)}
+                  style={{ flex: 1, fontSize: 12, padding: "5px 8px" }}>
+                  {HORAS.map(h => <option key={h}>{h}</option>)}
                 </select>
               </div>
             ))}
@@ -746,153 +678,155 @@ function FormMateria({initial,onSave,onClose}){
 
       <div>
         <Lbl>Aula</Lbl>
-        <input style={{width:"100%"}} value={f.aula} onChange={e=>s("aula",e.target.value)} placeholder="Ej: Lab1"/>
+        <input style={{ width: "100%" }} value={f.aula} onChange={e => s("aula", e.target.value)} placeholder="Ej: Lab1" />
       </div>
-      <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button className="btn-primary" style={{flex:1}} onClick={()=>{if(validar())onSave(f);}}>{initial?"Guardar cambios":"Agregar materia"}</button>
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button className="btn-primary" style={{ flex: 1 }} onClick={() => { if (validar()) onSave(f); }}>{initial ? "Guardar cambios" : "Agregar materia"}</button>
         <button className="btn-ghost" onClick={onClose}>Cancelar</button>
       </div>
     </div>
   );
 }
 
-function VistasMaterias({materias,onAdd,onEdit,onDelete}){
-  const [filtro,setFiltro]=useState("all");
-  const [busq,setBusq]=useState("");
-  const [edit,setEdit]=useState(null);
-  const [add,setAdd]=useState(false);
-  const [confirm,setConfirm]=useState(null); // {id, nombre}
-  const fil=useMemo(()=>materias.filter(m=>(filtro==="all"||m.estado===filtro)&&m.nombre.toLowerCase().includes(busq.toLowerCase())).sort((a,b)=>a.año-b.año||a.cuatrimestre-b.cuatrimestre),[materias,filtro,busq]);
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <input style={{flex:1,minWidth:160}} value={busq} onChange={e=>setBusq(e.target.value)} placeholder="Buscar materia..."/>
-        <select value={filtro} onChange={e=>setFiltro(e.target.value)} style={{minWidth:140}}>
+function VistasMaterias({ materias, onAdd, onEdit, onDelete }) {
+  const [filtro, setFiltro] = useState("all");
+  const [busq, setBusq] = useState("");
+  const [edit, setEdit] = useState(null);
+  const [add, setAdd] = useState(false);
+  const [confirm, setConfirm] = useState(null); // {id, nombre}
+  const fil = useMemo(() => materias.filter(m => (filtro === "all" || m.estado === filtro) && m.nombre.toLowerCase().includes(busq.toLowerCase())).sort((a, b) => a.año - b.año || a.cuatrimestre - b.cuatrimestre), [materias, filtro, busq]);
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <input style={{ flex: 1, minWidth: 160 }} value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar materia..." />
+        <select value={filtro} onChange={e => setFiltro(e.target.value)} style={{ minWidth: 140 }}>
           <option value="all">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button className="btn-primary" onClick={()=>setAdd(true)}><Icon name="plus" size={14} color="#fff"/>Agregar</button>
+        <button className="btn-primary" onClick={() => setAdd(true)}><Icon name="plus" size={14} color="#fff" />Agregar</button>
       </div>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-        {["all",...Object.keys(ESTADOS)].map(k=>{
-          const c=k==="all"?materias.length:materias.filter(m=>m.estado===k).length;
-          const est=k==="all"?null:ESTADOS[k];const ac=filtro===k;
-          return <button key={k} onClick={()=>setFiltro(k)} style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:500,border:`1px solid ${ac?(est?.color||"var(--blue)"):"var(--border)"}`,background:ac?(est?.bg||"var(--blue-dim)"):"transparent",color:ac?(est?.color||"var(--blue)"):"var(--text2)",transition:"all 0.15s"}}>{k==="all"?"Todas":est.label} ({c})</button>;
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {["all", ...Object.keys(ESTADOS)].map(k => {
+          const c = k === "all" ? materias.length : materias.filter(m => m.estado === k).length;
+          const est = k === "all" ? null : ESTADOS[k]; const ac = filtro === k;
+          return <button key={k} onClick={() => setFiltro(k)} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 500, border: `1px solid ${ac ? (est?.color || "var(--blue)") : "var(--border)"}`, background: ac ? (est?.bg || "var(--blue-dim)") : "transparent", color: ac ? (est?.color || "var(--blue)") : "var(--text2)", transition: "all 0.15s" }}>{k === "all" ? "Todas" : est.label} ({c})</button>;
         })}
       </div>
-      {fil.length===0?<div className="card" style={{padding:24,textAlign:"center",color:"var(--text2)",fontSize:13}}>Sin resultados</div>:(
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {fil.map(m=>{const est=ESTADOS[m.estado];return(
-            <div key={m.id} className="card" style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:11,transition:"border-color 0.15s"}}
-              onMouseEnter={e=>e.currentTarget.style.borderColor="var(--border2)"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-              <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3,flexWrap:"wrap"}}>
-                  <span style={{fontSize:13,fontWeight:600}}>{m.nombre}</span>
-                  <span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>
-                  {m.nota&&<span className="mono tag" style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:10}}>{m.nota}/10</span>}
+      {fil.length === 0 ? <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Sin resultados</div> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {fil.map(m => {
+            const est = ESTADOS[m.estado]; return (
+              <div key={m.id} className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11, transition: "border-color 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--border2)"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{m.nombre}</span>
+                    <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
+                    {m.nota && <span className="mono tag" style={{ background: "var(--blue-dim)", color: "var(--blue)", fontSize: 10 }}>{m.nota}/10</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <span>Año {m.año} · {m.cuatrimestre}° cuat.</span>
+                    {m.dias?.length > 0 && <span>{m.dias.map(d => `${d} ${m.horarios?.[d] || m.horario || ""}`).join(", ")}</span>}
+                    {m.aula && <span>Aula: {m.aula}</span>}
+                    <span>{m.hs} hs/sem</span>
+                  </div>
                 </div>
-                <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:10,flexWrap:"wrap"}}>
-                  <span>Año {m.año} · {m.cuatrimestre}° cuat.</span>
-                  {m.dias?.length>0&&<span>{m.dias.map(d=>`${d} ${m.horarios?.[d]||m.horario||""}`).join(", ")}</span>}
-                  {m.aula&&<span>Aula: {m.aula}</span>}
-                  <span>{m.hs} hs/sem</span>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button className="btn-ghost" style={{ padding: "5px 9px", fontSize: 12 }} onClick={() => setEdit(m)}><Icon name="edit" size={13} />Editar</button>
+                  <button className="btn-danger" onClick={() => setConfirm({ id: m.id, nombre: m.nombre })}><Icon name="trash" size={13} /></button>
                 </div>
               </div>
-              <div style={{display:"flex",gap:6,flexShrink:0}}>
-                <button className="btn-ghost" style={{padding:"5px 9px",fontSize:12}} onClick={()=>setEdit(m)}><Icon name="edit" size={13}/>Editar</button>
-                <button className="btn-danger" onClick={()=>setConfirm({id:m.id,nombre:m.nombre})}><Icon name="trash" size={13}/></button>
-              </div>
-            </div>
-          );})}
+            );
+          })}
         </div>
       )}
-      {add&&<Modal title="Nueva Materia" onClose={()=>setAdd(false)}><FormMateria onSave={f=>{onAdd(f);setAdd(false);}} onClose={()=>setAdd(false)}/></Modal>}
-      {edit&&<Modal title="Editar Materia" onClose={()=>setEdit(null)}><FormMateria initial={edit} onSave={f=>{onEdit(edit.id,f);setEdit(null);}} onClose={()=>setEdit(null)}/></Modal>}
-      {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{onDelete(confirm.id);setConfirm(null);}}/>}
+      {add && <Modal title="Nueva Materia" onClose={() => setAdd(false)}><FormMateria onSave={f => { onAdd(f); setAdd(false); }} onClose={() => setAdd(false)} /></Modal>}
+      {edit && <Modal title="Editar Materia" onClose={() => setEdit(null)}><FormMateria initial={edit} onSave={f => { onEdit(edit.id, f); setEdit(null); }} onClose={() => setEdit(null)} /></Modal>}
+      {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { onDelete(confirm.id); setConfirm(null); }} />}
     </div>
   );
 }
 
 // ─── HORARIOS ─────────────────────────────────────────────────────────────────
-function VistaHorarios({materias}){
-  const cur=materias.filter(m=>["cursando","regular"].includes(m.estado)&&m.dias?.length>0);
-  const [vistaGrid, setVistaGrid]=useState(false);
+function VistaHorarios({ materias }) {
+  const cur = materias.filter(m => ["cursando", "regular"].includes(m.estado) && m.dias?.length > 0);
+  const [vistaGrid, setVistaGrid] = useState(false);
 
-  const entradas=cur.flatMap(m=>
-    (m.dias||[]).map(dia=>({
-      materia:m, dia,
+  const entradas = cur.flatMap(m =>
+    (m.dias || []).map(dia => ({
+      materia: m, dia,
       hora: m.horarios?.[dia] || m.horario || "12:00"
     }))
-  ).sort((a,b)=>a.hora.localeCompare(b.hora));
+  ).sort((a, b) => a.hora.localeCompare(b.hora));
 
   // Vista por día (default) — más legible en cel y desktop
-  const porDia=DIAS_SEMANA.map(dia=>({
+  const porDia = DIAS_SEMANA.map(dia => ({
     dia,
-    clases: entradas.filter(e=>e.dia===dia).sort((a,b)=>a.hora.localeCompare(b.hora))
-  })).filter(d=>d.clases.length>0);
+    clases: entradas.filter(e => e.dia === dia).sort((a, b) => a.hora.localeCompare(b.hora))
+  })).filter(d => d.clases.length > 0);
 
   // Vista grilla
-  const horasConClases=[...new Set(entradas.map(e=>e.hora))].sort();
-  const horasAMostrar=horasConClases.length>0?HORAS.filter(h=>{
-    const idx=HORAS.indexOf(h);
-    const indices=horasConClases.map(x=>HORAS.indexOf(x)).filter(x=>x>=0);
-    if(!indices.length) return false;
-    const min=Math.max(0,Math.min(...indices)-1);
-    const max=Math.min(HORAS.length-1,Math.max(...indices)+1);
-    return idx>=min&&idx<=max;
-  }):HORAS;
+  const horasConClases = [...new Set(entradas.map(e => e.hora))].sort();
+  const horasAMostrar = horasConClases.length > 0 ? HORAS.filter(h => {
+    const idx = HORAS.indexOf(h);
+    const indices = horasConClases.map(x => HORAS.indexOf(x)).filter(x => x >= 0);
+    if (!indices.length) return false;
+    const min = Math.max(0, Math.min(...indices) - 1);
+    const max = Math.min(HORAS.length - 1, Math.max(...indices) + 1);
+    return idx >= min && idx <= max;
+  }) : HORAS;
 
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:16}}>
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* Toggle de vista */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-        <p style={{fontSize:13,color:"var(--text2)"}}>{cur.length} materia{cur.length!==1?"s":""} con horario cargado</p>
-        <div style={{display:"flex",gap:1,background:"var(--surface2)",borderRadius:7,padding:3}}>
-          {[{id:false,label:"Por día"},{id:true,label:"Grilla"}].map(v=>(
-            <button key={String(v.id)} onClick={()=>setVistaGrid(v.id)} style={{
-              padding:"5px 14px",borderRadius:5,border:"none",fontSize:12,fontWeight:500,
-              background:vistaGrid===v.id?"var(--blue)":"transparent",
-              color:vistaGrid===v.id?"#fff":"var(--text2)",transition:"all 0.15s"
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <p style={{ fontSize: 13, color: "var(--text2)" }}>{cur.length} materia{cur.length !== 1 ? "s" : ""} con horario cargado</p>
+        <div style={{ display: "flex", gap: 1, background: "var(--surface2)", borderRadius: 7, padding: 3 }}>
+          {[{ id: false, label: "Por día" }, { id: true, label: "Grilla" }].map(v => (
+            <button key={String(v.id)} onClick={() => setVistaGrid(v.id)} style={{
+              padding: "5px 14px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 500,
+              background: vistaGrid === v.id ? "var(--blue)" : "transparent",
+              color: vistaGrid === v.id ? "#fff" : "var(--text2)", transition: "all 0.15s"
             }}>{v.label}</button>
           ))}
         </div>
       </div>
 
-      {cur.length===0&&(
-        <div className="card" style={{padding:28,textAlign:"center",color:"var(--text2)",fontSize:13}}>
+      {cur.length === 0 && (
+        <div className="card" style={{ padding: 28, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>
           No hay materias con horario cargado todavía
         </div>
       )}
 
       {/* ── VISTA POR DÍA ── */}
-      {!vistaGrid&&cur.length>0&&(
-        porDia.length===0?(
-          <div className="card" style={{padding:24,textAlign:"center",color:"var(--text2)",fontSize:13}}>
+      {!vistaGrid && cur.length > 0 && (
+        porDia.length === 0 ? (
+          <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>
             Agregá días a tus materias para ver el horario
           </div>
-        ):(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
-            {porDia.map(({dia,clases})=>(
-              <div key={dia} className="card" style={{padding:0,overflow:"hidden"}}>
-                <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span style={{fontFamily:"'Barlow Condensed'",fontSize:14,fontWeight:700,letterSpacing:0.5}}>{dia}</span>
-                  <span style={{fontSize:11,color:"var(--text2)"}}>{clases.length} clase{clases.length!==1?"s":""}</span>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12 }}>
+            {porDia.map(({ dia, clases }) => (
+              <div key={dia} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 14, fontWeight: 700, letterSpacing: 0.5 }}>{dia}</span>
+                  <span style={{ fontSize: 11, color: "var(--text2)" }}>{clases.length} clase{clases.length !== 1 ? "s" : ""}</span>
                 </div>
-                <div style={{display:"flex",flexDirection:"column",gap:0}}>
-                  {clases.map((e,i)=>{
-                    const est=ESTADOS[e.materia.estado];
-                    return(
-                      <div key={i} style={{padding:"10px 14px",borderBottom:i<clases.length-1?"1px solid var(--border)":"none",display:"flex",alignItems:"center",gap:10}}>
-                        <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.materia.nombre}</div>
-                          <div style={{fontSize:11,color:"var(--text2)",marginTop:2,display:"flex",gap:8}}>
-                            <span style={{fontFamily:"'DM Mono'",color:"var(--blue)"}}>{e.hora}</span>
-                            {e.materia.aula&&<span>Aula {e.materia.aula}</span>}
-                            <span className="tag" style={{background:est.bg,color:est.color,padding:"0 6px"}}>{est.label}</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {clases.map((e, i) => {
+                    const est = ESTADOS[e.materia.estado];
+                    return (
+                      <div key={i} style={{ padding: "10px 14px", borderBottom: i < clases.length - 1 ? "1px solid var(--border)" : "none", display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.materia.nombre}</div>
+                          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, display: "flex", gap: 8 }}>
+                            <span style={{ fontFamily: "'DM Mono'", color: "var(--blue)" }}>{e.hora}</span>
+                            {e.materia.aula && <span>Aula {e.materia.aula}</span>}
+                            <span className="tag" style={{ background: est.bg, color: est.color, padding: "0 6px" }}>{est.label}</span>
                           </div>
                         </div>
                       </div>
@@ -906,29 +840,29 @@ function VistaHorarios({materias}){
       )}
 
       {/* ── VISTA GRILLA ── */}
-      {vistaGrid&&cur.length>0&&(
-        <div style={{overflowX:"auto"}}>
-          <div style={{minWidth:600}}>
-            <div style={{display:"grid",gridTemplateColumns:"56px repeat(6,1fr)",gap:2,marginBottom:2}}>
-              <div/>
-              {DIAS_SEMANA.map(d=>(
-                <div key={d} style={{background:"var(--surface2)",borderRadius:5,padding:"7px 0",textAlign:"center",fontFamily:"'Barlow Condensed'",fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text2)"}}>{d}</div>
+      {vistaGrid && cur.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <div style={{ minWidth: 600 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "56px repeat(6,1fr)", gap: 2, marginBottom: 2 }}>
+              <div />
+              {DIAS_SEMANA.map(d => (
+                <div key={d} style={{ background: "var(--surface2)", borderRadius: 5, padding: "7px 0", textAlign: "center", fontFamily: "'Barlow Condensed'", fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "var(--text2)" }}>{d}</div>
               ))}
             </div>
-            {horasAMostrar.map(hora=>{
-              const tieneAlgo=DIAS_SEMANA.some(d=>entradas.some(e=>e.hora===hora&&e.dia===d));
-              return(
-                <div key={hora} style={{display:"grid",gridTemplateColumns:"56px repeat(6,1fr)",gap:2,marginBottom:2}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:7,fontFamily:"'DM Mono'",fontSize:9,color:tieneAlgo?"var(--blue)":"var(--text3)"}}>{hora}</div>
-                  {DIAS_SEMANA.map(dia=>{
-                    const entrada=entradas.find(e=>e.hora===hora&&e.dia===dia);
-                    const m=entrada?.materia;
-                    const est=m?ESTADOS[m.estado]:null;
-                    return(
-                      <div key={dia} style={{background:m?est.bg:"var(--surface)",minHeight:34,border:`1px solid ${m?est.color+"44":"var(--border)"}`,borderRadius:5,padding:m?"5px 7px":"2px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
-                        {m&&<>
-                          <span style={{fontSize:9,fontWeight:700,color:est.color,lineHeight:1.3}}>{m.nombre.length>20?m.nombre.slice(0,20)+"…":m.nombre}</span>
-                          {m.aula&&<span style={{fontSize:8,color:"var(--text2)",marginTop:1}}>Aula {m.aula}</span>}
+            {horasAMostrar.map(hora => {
+              const tieneAlgo = DIAS_SEMANA.some(d => entradas.some(e => e.hora === hora && e.dia === d));
+              return (
+                <div key={hora} style={{ display: "grid", gridTemplateColumns: "56px repeat(6,1fr)", gap: 2, marginBottom: 2 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 7, fontFamily: "'DM Mono'", fontSize: 9, color: tieneAlgo ? "var(--blue)" : "var(--text3)" }}>{hora}</div>
+                  {DIAS_SEMANA.map(dia => {
+                    const entrada = entradas.find(e => e.hora === hora && e.dia === dia);
+                    const m = entrada?.materia;
+                    const est = m ? ESTADOS[m.estado] : null;
+                    return (
+                      <div key={dia} style={{ background: m ? est.bg : "var(--surface)", minHeight: 34, border: `1px solid ${m ? est.color + "44" : "var(--border)"}`, borderRadius: 5, padding: m ? "5px 7px" : "2px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                        {m && <>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: est.color, lineHeight: 1.3 }}>{m.nombre.length > 20 ? m.nombre.slice(0, 20) + "…" : m.nombre}</span>
+                          {m.aula && <span style={{ fontSize: 8, color: "var(--text2)", marginTop: 1 }}>Aula {m.aula}</span>}
                         </>}
                       </div>
                     );
@@ -941,9 +875,9 @@ function VistaHorarios({materias}){
       )}
 
       <div><p className="section-title">Referencias</p>
-        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          {Object.entries(ESTADOS).filter(([k])=>["cursando","regular"].includes(k)).map(([k,v])=>(
-            <span key={k} className="tag" style={{background:v.bg,color:v.color}}>{v.label}</span>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+          {Object.entries(ESTADOS).filter(([k]) => ["cursando", "regular"].includes(k)).map(([k, v]) => (
+            <span key={k} className="tag" style={{ background: v.bg, color: v.color }}>{v.label}</span>
           ))}
         </div>
       </div>
@@ -953,11 +887,11 @@ function VistaHorarios({materias}){
 
 // ─── IMPORTADOR IA ────────────────────────────────────────────────────────────
 function ImportadorIA({ materias, onImportar, onClose }) {
-  const [texto, setTexto]     = useState("");
+  const [texto, setTexto] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null); // array de eventos parseados
   const [seleccionados, setSeleccionados] = useState([]);
-  const [err, setErr]         = useState("");
+  const [err, setErr] = useState("");
 
   const parsear = async () => {
     if (!texto.trim()) return;
@@ -1102,306 +1036,306 @@ Reglas:
 }
 
 // ─── EVENTOS ──────────────────────────────────────────────────────────────────
-function FormEvento({materias,initial,onSave,onClose}){
-  const [f,setF]=useState(initial||{materia_id:materias[0]?.id||"",tipo:"parcial",titulo:"",fecha:"",hora:"09:00",descripcion:""});
-  const [errs,setErrs]=useState({});
-  const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  const validar=()=>{
-    const e={};
-    if(!f.titulo||f.titulo.trim().length<3) e.titulo="El título debe tener al menos 3 caracteres";
-    if(!f.fecha) e.fecha="La fecha es requerida";
+function FormEvento({ materias, initial, onSave, onClose }) {
+  const [f, setF] = useState(initial || { materia_id: materias[0]?.id || "", tipo: "parcial", titulo: "", fecha: "", hora: "09:00", descripcion: "" });
+  const [errs, setErrs] = useState({});
+  const s = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const validar = () => {
+    const e = {};
+    if (!f.titulo || f.titulo.trim().length < 3) e.titulo = "El título debe tener al menos 3 caracteres";
+    if (!f.fecha) e.fecha = "La fecha es requerida";
     setErrs(e);
-    return Object.keys(e).length===0;
+    return Object.keys(e).length === 0;
   };
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:13}}>
-      <div><Lbl>Materia</Lbl><select style={{width:"100%"}} value={f.materia_id} onChange={e=>s("materia_id",e.target.value)}>{materias.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-        <div><Lbl>Tipo</Lbl><select style={{width:"100%"}} value={f.tipo} onChange={e=>s("tipo",e.target.value)}>{Object.entries(TIPO_EVENTO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+      <div><Lbl>Materia</Lbl><select style={{ width: "100%" }} value={f.materia_id} onChange={e => s("materia_id", e.target.value)}>{materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+        <div><Lbl>Tipo</Lbl><select style={{ width: "100%" }} value={f.tipo} onChange={e => s("tipo", e.target.value)}>{Object.entries(TIPO_EVENTO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
         <div>
           <Lbl>Fecha</Lbl>
-          <input type="date" style={{width:"100%",colorScheme:"dark",borderColor:errs.fecha?"var(--red)":undefined}} value={f.fecha} onChange={e=>{s("fecha",e.target.value);setErrs(p=>({...p,fecha:""}));}}/>
-          {errs.fecha&&<div className="field-error">{errs.fecha}</div>}
+          <input type="date" style={{ width: "100%", colorScheme: "dark", borderColor: errs.fecha ? "var(--red)" : undefined }} value={f.fecha} onChange={e => { s("fecha", e.target.value); setErrs(p => ({ ...p, fecha: "" })); }} />
+          {errs.fecha && <div className="field-error">{errs.fecha}</div>}
         </div>
       </div>
       <div>
         <Lbl>Título</Lbl>
-        <input style={{width:"100%",borderColor:errs.titulo?"var(--red)":undefined}} value={f.titulo} onChange={e=>{s("titulo",e.target.value);setErrs(p=>({...p,titulo:""}));}} placeholder="Ej: 1er Parcial"/>
-        {errs.titulo&&<div className="field-error">{errs.titulo}</div>}
+        <input style={{ width: "100%", borderColor: errs.titulo ? "var(--red)" : undefined }} value={f.titulo} onChange={e => { s("titulo", e.target.value); setErrs(p => ({ ...p, titulo: "" })); }} placeholder="Ej: 1er Parcial" />
+        {errs.titulo && <div className="field-error">{errs.titulo}</div>}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-        <div><Lbl>Hora</Lbl><select style={{width:"100%"}} value={f.hora} onChange={e=>s("hora",e.target.value)}>{HORAS.map(h=><option key={h}>{h}</option>)}</select></div>
-        <div><Lbl>Descripción</Lbl><input style={{width:"100%"}} value={f.descripcion} onChange={e=>s("descripcion",e.target.value)} placeholder="Temas, etc."/></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+        <div><Lbl>Hora</Lbl><select style={{ width: "100%" }} value={f.hora} onChange={e => s("hora", e.target.value)}>{HORAS.map(h => <option key={h}>{h}</option>)}</select></div>
+        <div><Lbl>Descripción</Lbl><input style={{ width: "100%" }} value={f.descripcion} onChange={e => s("descripcion", e.target.value)} placeholder="Temas, etc." /></div>
       </div>
-      <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button className="btn-primary" style={{flex:1}} onClick={()=>{if(validar())onSave(f);}}>{initial?"Guardar":"Agregar evento"}</button>
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button className="btn-primary" style={{ flex: 1 }} onClick={() => { if (validar()) onSave(f); }}>{initial ? "Guardar" : "Agregar evento"}</button>
         <button className="btn-ghost" onClick={onClose}>Cancelar</button>
       </div>
     </div>
   );
 }
 
-function VistaEventos({materias,eventos,onAdd,onEdit,onDelete}){
-  const [edit,setEdit]=useState(null);
-  const [add,setAdd]=useState(false);
-  const [importar,setImportar]=useState(false);
-  const [ft,setFt]=useState("all");
-  const [confirm,setConfirm]=useState(null);
-  const hoy=new Date();
-  const fil=useMemo(()=>eventos.filter(e=>ft==="all"||e.tipo===ft).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)),[eventos,ft]);
-  const prox=fil.filter(e=>new Date(e.fecha)>=hoy);
-  const pas=fil.filter(e=>new Date(e.fecha)<hoy);
-  const Row=({ev})=>{
-    const mat=materias.find(m=>m.id===ev.materia_id);
-    const tipo=TIPO_EVENTO[ev.tipo];
-    const past=new Date(ev.fecha)<hoy;
-    const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
-    const lbl=past?"Pasado":d===0?"Hoy":d===1?"Mañana":`${d}d`;
-    return(
-      <div className="card" style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:11,opacity:past?0.45:1}}>
-        <div style={{width:3,height:36,borderRadius:2,background:tipo.color,flexShrink:0}}/>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2,flexWrap:"wrap"}}>
-            <span style={{fontSize:13,fontWeight:600}}>{ev.titulo}</span>
-            <span className="tag" style={{background:`${tipo.color}18`,color:tipo.color}}>{tipo.label}</span>
+function VistaEventos({ materias, eventos, onAdd, onEdit, onDelete }) {
+  const [edit, setEdit] = useState(null);
+  const [add, setAdd] = useState(false);
+  const [importar, setImportar] = useState(false);
+  const [ft, setFt] = useState("all");
+  const [confirm, setConfirm] = useState(null);
+  const hoy = new Date();
+  const fil = useMemo(() => eventos.filter(e => ft === "all" || e.tipo === ft).sort((a, b) => new Date(a.fecha) - new Date(b.fecha)), [eventos, ft]);
+  const prox = fil.filter(e => new Date(e.fecha) >= hoy);
+  const pas = fil.filter(e => new Date(e.fecha) < hoy);
+  const Row = ({ ev }) => {
+    const mat = materias.find(m => m.id === ev.materia_id);
+    const tipo = TIPO_EVENTO[ev.tipo];
+    const past = new Date(ev.fecha) < hoy;
+    const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
+    const lbl = past ? "Pasado" : d === 0 ? "Hoy" : d === 1 ? "Mañana" : `${d}d`;
+    return (
+      <div className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11, opacity: past ? 0.45 : 1 }}>
+        <div style={{ width: 3, height: 36, borderRadius: 2, background: tipo.color, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{ev.titulo}</span>
+            <span className="tag" style={{ background: `${tipo.color}18`, color: tipo.color }}>{tipo.label}</span>
           </div>
-          <span style={{fontSize:11,color:"var(--text2)"}}>{mat?.nombre}{ev.descripcion&&` · ${ev.descripcion}`}</span>
+          <span style={{ fontSize: 11, color: "var(--text2)" }}>{mat?.nombre}{ev.descripcion && ` · ${ev.descripcion}`}</span>
         </div>
-        <div style={{textAlign:"right",flexShrink:0,minWidth:64}}>
-          <div style={{fontFamily:"'DM Mono'",fontSize:12,color:past?"var(--text3)":"var(--blue)",fontWeight:500}}>{lbl}</div>
-          <div style={{fontSize:10,color:"var(--text3)",marginTop:1}}>{new Date(ev.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"2-digit",month:"short",year:"2-digit"})} · {ev.hora}</div>
+        <div style={{ textAlign: "right", flexShrink: 0, minWidth: 64 }}>
+          <div style={{ fontFamily: "'DM Mono'", fontSize: 12, color: past ? "var(--text3)" : "var(--blue)", fontWeight: 500 }}>{lbl}</div>
+          <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{new Date(ev.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })} · {ev.hora}</div>
         </div>
-        <div style={{display:"flex",gap:5}}>
-          <button className="btn-ghost" style={{padding:"5px 8px"}} onClick={()=>setEdit(ev)}><Icon name="edit" size={13}/></button>
-          <button className="btn-danger" onClick={()=>setConfirm({id:ev.id,nombre:ev.titulo})}><Icon name="trash" size={13}/></button>
+        <div style={{ display: "flex", gap: 5 }}>
+          <button className="btn-ghost" style={{ padding: "5px 8px" }} onClick={() => setEdit(ev)}><Icon name="edit" size={13} /></button>
+          <button className="btn-danger" onClick={() => setConfirm({ id: ev.id, nombre: ev.titulo })}><Icon name="trash" size={13} /></button>
         </div>
       </div>
     );
   };
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <div style={{display:"flex",gap:5,flex:1,flexWrap:"wrap"}}>
-          {["all",...Object.keys(TIPO_EVENTO)].map(k=>{const t=k==="all"?null:TIPO_EVENTO[k];const ac=ft===k;return <button key={k} onClick={()=>setFt(k)} style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:500,border:`1px solid ${ac?(t?.color||"var(--blue)"):"var(--border)"}`,background:ac?(t?`${t.color}18`:"var(--blue-dim)"):"transparent",color:ac?(t?.color||"var(--blue)"):"var(--text2)",transition:"all 0.15s"}}>{k==="all"?"Todos":t.label}</button>;})}
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 5, flex: 1, flexWrap: "wrap" }}>
+          {["all", ...Object.keys(TIPO_EVENTO)].map(k => { const t = k === "all" ? null : TIPO_EVENTO[k]; const ac = ft === k; return <button key={k} onClick={() => setFt(k)} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 500, border: `1px solid ${ac ? (t?.color || "var(--blue)") : "var(--border)"}`, background: ac ? (t ? `${t.color}18` : "var(--blue-dim)") : "transparent", color: ac ? (t?.color || "var(--blue)") : "var(--text2)", transition: "all 0.15s" }}>{k === "all" ? "Todos" : t.label}</button>; })}
         </div>
-        <button className="btn-ghost" style={{fontSize:13}} onClick={()=>setImportar(true)}>Importar desde texto</button>
-        <button className="btn-primary" onClick={()=>setAdd(true)}><Icon name="plus" size={14} color="#fff"/>Agregar</button>
+        <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => setImportar(true)}>Importar desde texto</button>
+        <button className="btn-primary" onClick={() => setAdd(true)}><Icon name="plus" size={14} color="#fff" />Agregar</button>
       </div>
-      {prox.length>0&&<><p className="section-title">Próximos ({prox.length})</p><div style={{display:"flex",flexDirection:"column",gap:6}}>{prox.map(ev=><Row key={ev.id} ev={ev}/>)}</div></>}
-      {pas.length>0&&<><p className="section-title" style={{marginTop:8}}>Pasados ({pas.length})</p><div style={{display:"flex",flexDirection:"column",gap:6}}>{pas.map(ev=><Row key={ev.id} ev={ev}/>)}</div></>}
-      {fil.length===0&&<div className="card" style={{padding:24,textAlign:"center",color:"var(--text2)",fontSize:13}}>Sin eventos</div>}
-      {add&&<Modal title="Nuevo Evento" onClose={()=>setAdd(false)}><FormEvento materias={materias} onSave={f=>{onAdd(f);setAdd(false);}} onClose={()=>setAdd(false)}/></Modal>}
-      {edit&&<Modal title="Editar Evento" onClose={()=>setEdit(null)}><FormEvento materias={materias} initial={edit} onSave={f=>{onEdit(edit.id,f);setEdit(null);}} onClose={()=>setEdit(null)}/></Modal>}
-      {importar&&<Modal title="Importar eventos desde texto" onClose={()=>setImportar(false)} width={600}>
-        <ImportadorIA materias={materias} onImportar={evs=>{evs.forEach(ev=>onAdd(ev));}} onClose={()=>setImportar(false)}/>
+      {prox.length > 0 && <><p className="section-title">Próximos ({prox.length})</p><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{prox.map(ev => <Row key={ev.id} ev={ev} />)}</div></>}
+      {pas.length > 0 && <><p className="section-title" style={{ marginTop: 8 }}>Pasados ({pas.length})</p><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{pas.map(ev => <Row key={ev.id} ev={ev} />)}</div></>}
+      {fil.length === 0 && <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Sin eventos</div>}
+      {add && <Modal title="Nuevo Evento" onClose={() => setAdd(false)}><FormEvento materias={materias} onSave={f => { onAdd(f); setAdd(false); }} onClose={() => setAdd(false)} /></Modal>}
+      {edit && <Modal title="Editar Evento" onClose={() => setEdit(null)}><FormEvento materias={materias} initial={edit} onSave={f => { onEdit(edit.id, f); setEdit(null); }} onClose={() => setEdit(null)} /></Modal>}
+      {importar && <Modal title="Importar eventos desde texto" onClose={() => setImportar(false)} width={600}>
+        <ImportadorIA materias={materias} onImportar={evs => { evs.forEach(ev => onAdd(ev)); }} onClose={() => setImportar(false)} />
       </Modal>}
-      {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{onDelete(confirm.id);setConfirm(null);}}/>}
+      {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { onDelete(confirm.id); setConfirm(null); }} />}
     </div>
   );
 }
 
 // ─── ARCHIVOS (R2 + CARPETAS POR MATERIA) ────────────────────────────────────
-function VistaArchivos({materias,userId,showToast}){
-  const [archivos,setArchivos]   = useState([]);
-  const [carpetas,setCarpetas]   = useState([]);
-  const [loading,setLoading]     = useState(true);
-  const [uploading,setUploading] = useState(false);
-  const [uploadProgress,setUploadProgress] = useState("");
-  const [confirm,setConfirm]     = useState(null);
-  const [confirmCarpeta,setConfirmCarpeta] = useState(null);
-  const [nav,setNav]             = useState(null); // null=raíz, {tipo:"materia",id} o {tipo:"carpeta",id,materiaId}
-  const [nuevaCarpeta,setNuevaCarpeta] = useState(false);
-  const [nombreCarpeta,setNombreCarpeta] = useState("");
-  const [drag,setDrag]           = useState(false);
+function VistaArchivos({ materias, userId, showToast }) {
+  const [archivos, setArchivos] = useState([]);
+  const [carpetas, setCarpetas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const [confirm, setConfirm] = useState(null);
+  const [confirmCarpeta, setConfirmCarpeta] = useState(null);
+  const [nav, setNav] = useState(null); // null=raíz, {tipo:"materia",id} o {tipo:"carpeta",id,materiaId}
+  const [nuevaCarpeta, setNuevaCarpeta] = useState(false);
+  const [nombreCarpeta, setNombreCarpeta] = useState("");
+  const [drag, setDrag] = useState(false);
 
-  useEffect(()=>{ cargar(); },[]);
+  useEffect(() => { cargar(); }, []);
 
-  const cargar=async()=>{
+  const cargar = async () => {
     setLoading(true);
-    const [{data:a,error:ea},{data:c,error:ec}]=await Promise.all([
-      sb.from("archivos").select("*").order("created_at",{ascending:false}),
+    const [{ data: a, error: ea }, { data: c, error: ec }] = await Promise.all([
+      sb.from("archivos").select("*").order("created_at", { ascending: false }),
       sb.from("carpetas").select("*").order("nombre"),
     ]);
-    if(ea) showToast(ea.message);
-    if(ec) showToast(ec.message);
-    setArchivos(a||[]);
-    setCarpetas(c||[]);
+    if (ea) showToast(ea.message);
+    if (ec) showToast(ec.message);
+    setArchivos(a || []);
+    setCarpetas(c || []);
     setLoading(false);
   };
 
-  const crearCarpeta=async()=>{
-    if(!nombreCarpeta.trim()||!nav?.id) return;
-    const {data,error}=await sb.from("carpetas").insert({
-      user_id:userId, nombre:nombreCarpeta.trim(), materia_id:nav.id
+  const crearCarpeta = async () => {
+    if (!nombreCarpeta.trim() || !nav?.id) return;
+    const { data, error } = await sb.from("carpetas").insert({
+      user_id: userId, nombre: nombreCarpeta.trim(), materia_id: nav.id
     }).select().single();
-    if(error){showToast(error.message);return;}
-    setCarpetas(cs=>[...cs,data]);
+    if (error) { showToast(error.message); return; }
+    setCarpetas(cs => [...cs, data]);
     setNombreCarpeta(""); setNuevaCarpeta(false);
   };
 
-  const eliminarCarpeta=async(c)=>{
-    await sb.from("archivos").update({carpeta_id:null}).eq("carpeta_id",c.id);
-    const {error}=await sb.from("carpetas").delete().eq("id",c.id);
-    if(error){showToast(error.message);return;}
-    setCarpetas(cs=>cs.filter(x=>x.id!==c.id));
-    if(nav?.id===c.id) setNav({tipo:"materia",id:c.materia_id});
+  const eliminarCarpeta = async (c) => {
+    await sb.from("archivos").update({ carpeta_id: null }).eq("carpeta_id", c.id);
+    const { error } = await sb.from("carpetas").delete().eq("id", c.id);
+    if (error) { showToast(error.message); return; }
+    setCarpetas(cs => cs.filter(x => x.id !== c.id));
+    if (nav?.id === c.id) setNav({ tipo: "materia", id: c.materia_id });
     await cargar();
   };
 
-  const subir=async(files,materiaId,carpetaId=null)=>{
+  const subir = async (files, materiaId, carpetaId = null) => {
     setUploading(true);
-    for(const file of Array.from(files)){
+    for (const file of Array.from(files)) {
       setUploadProgress(file.name);
-      try{
-        const res=await fetch("/api/upload",{
-          method:"POST",
-          headers:{
-            "Content-Type":file.type||"application/octet-stream",
-            "x-file-name":encodeURIComponent(file.name),
-            "x-user-id":userId,
+      try {
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "x-file-name": encodeURIComponent(file.name),
+            "x-user-id": userId,
           },
-          body:file,
+          body: file,
         });
-        const data=await res.json();
-        if(data.error){showToast(data.error);continue;}
-        const {error:dbErr}=await sb.from("archivos").insert({
-          user_id:userId, materia_id:materiaId, carpeta_id:carpetaId,
-          nombre:file.name, tipo:file.name.split(".").pop().toUpperCase(),
-          tamaño:file.size, storage_path:data.key,
+        const data = await res.json();
+        if (data.error) { showToast(data.error); continue; }
+        const { error: dbErr } = await sb.from("archivos").insert({
+          user_id: userId, materia_id: materiaId, carpeta_id: carpetaId,
+          nombre: file.name, tipo: file.name.split(".").pop().toUpperCase(),
+          tamaño: file.size, storage_path: data.key,
         });
-        if(dbErr) showToast(dbErr.message);
-      }catch(e){showToast(`Error: ${e.message}`);}
+        if (dbErr) showToast(dbErr.message);
+      } catch (e) { showToast(`Error: ${e.message}`); }
     }
     setUploadProgress("");
     await cargar();
     setUploading(false);
   };
 
-  const eliminar=async(a)=>{
-    if(a.storage_path){
-      try{ await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`,{method:"DELETE"}); }
-      catch(e){showToast(e.message);}
+  const eliminar = async (a) => {
+    if (a.storage_path) {
+      try { await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`, { method: "DELETE" }); }
+      catch (e) { showToast(e.message); }
     }
-    const {error}=await sb.from("archivos").delete().eq("id",a.id);
-    if(error){showToast(error.message);return;}
-    setArchivos(prev=>prev.filter(x=>x.id!==a.id));
+    const { error } = await sb.from("archivos").delete().eq("id", a.id);
+    if (error) { showToast(error.message); return; }
+    setArchivos(prev => prev.filter(x => x.id !== a.id));
   };
 
-  const descargar=async(a)=>{
-    if(!a.storage_path) return;
-    try{
-      const res=await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`);
-      const data=await res.json();
-      if(data.error){showToast(data.error);return;}
-      window.open(data.url,"_blank");
-    }catch(e){showToast(e.message);}
+  const descargar = async (a) => {
+    if (!a.storage_path) return;
+    try {
+      const res = await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`);
+      const data = await res.json();
+      if (data.error) { showToast(data.error); return; }
+      window.open(data.url, "_blank");
+    } catch (e) { showToast(e.message); }
   };
 
-  const fT=b=>b>1e6?`${(b/1e6).toFixed(1)} MB`:b>1e3?`${(b/1e3).toFixed(0)} KB`:`${b} B`;
-  const tC=t=>({PDF:"var(--red)",DOCX:"var(--blue)",DOC:"var(--blue)",XLSX:"var(--green)",PPTX:"var(--slate)",PNG:"var(--slate)",JPG:"var(--slate)"})[t]||"var(--text2)";
+  const fT = b => b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${(b / 1e3).toFixed(0)} KB` : `${b} B`;
+  const tC = t => ({ PDF: "var(--red)", DOCX: "var(--blue)", DOC: "var(--blue)", XLSX: "var(--green)", PPTX: "var(--slate)", PNG: "var(--slate)", JPG: "var(--slate)" })[t] || "var(--text2)";
 
-  const SubirBtn=({materiaId,carpetaId=null})=>(
-    <label className="btn-primary" style={{cursor:uploading?"wait":"pointer",opacity:uploading?0.7:1,fontSize:12,padding:"6px 14px"}}>
-      <Icon name="upload" size={13} color="#fff"/>
-      {uploading?(uploadProgress?`${uploadProgress.slice(0,14)}…`:"Subiendo..."):"Subir archivo"}
-      <input type="file" multiple style={{display:"none"}} onChange={e=>subir(e.target.files,materiaId,carpetaId)} disabled={uploading}/>
+  const SubirBtn = ({ materiaId, carpetaId = null }) => (
+    <label className="btn-primary" style={{ cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.7 : 1, fontSize: 12, padding: "6px 14px" }}>
+      <Icon name="upload" size={13} color="#fff" />
+      {uploading ? (uploadProgress ? `${uploadProgress.slice(0, 14)}…` : "Subiendo...") : "Subir archivo"}
+      <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
     </label>
   );
 
-  const ArchivoRow=({a})=>(
-    <div className="card" style={{padding:"9px 13px",display:"flex",alignItems:"center",gap:10}}>
-      <span style={{fontFamily:"'DM Mono'",fontSize:9,fontWeight:600,color:tC(a.tipo),background:`${tC(a.tipo)}15`,padding:"2px 5px",borderRadius:3,flexShrink:0}}>{a.tipo}</span>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre}</div>
-        <div style={{fontSize:10,color:"var(--text2)",marginTop:1,display:"flex",gap:8}}>
-          {a.tamaño&&<span>{fT(a.tamaño)}</span>}
+  const ArchivoRow = ({ a }) => (
+    <div className="card" style={{ padding: "9px 13px", display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontFamily: "'DM Mono'", fontSize: 9, fontWeight: 600, color: tC(a.tipo), background: `${tC(a.tipo)}15`, padding: "2px 5px", borderRadius: 3, flexShrink: 0 }}>{a.tipo}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre}</div>
+        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1, display: "flex", gap: 8 }}>
+          {a.tamaño && <span>{fT(a.tamaño)}</span>}
           <span>{new Date(a.created_at).toLocaleDateString("es-AR")}</span>
         </div>
       </div>
-      <div style={{display:"flex",gap:5,flexShrink:0}}>
-        {a.storage_path&&<button className="btn-ghost" style={{padding:"4px 9px",fontSize:11}} onClick={()=>descargar(a)}>Descargar</button>}
-        <button className="btn-danger" style={{padding:"4px 8px"}} onClick={()=>setConfirm({archivo:a,nombre:a.nombre})}><Icon name="trash" size={12}/></button>
+      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+        {a.storage_path && <button className="btn-ghost" style={{ padding: "4px 9px", fontSize: 11 }} onClick={() => descargar(a)}>Descargar</button>}
+        <button className="btn-danger" style={{ padding: "4px 8px" }} onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={12} /></button>
       </div>
     </div>
   );
 
-  const DropZone=({materiaId,carpetaId=null})=>(
-    <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
-      onDrop={e=>{e.preventDefault();setDrag(false);subir(e.dataTransfer.files,materiaId,carpetaId)}}
-      style={{border:`1px dashed ${drag?"var(--blue)":"var(--border)"}`,borderRadius:8,padding:"12px",textAlign:"center",background:drag?"var(--blue-dim)":"var(--surface)",transition:"all 0.2s",color:"var(--text2)",fontSize:12}}>
-      {drag?"Soltar aquí":"O arrastrar archivos aquí"}
+  const DropZone = ({ materiaId, carpetaId = null }) => (
+    <div onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); subir(e.dataTransfer.files, materiaId, carpetaId) }}
+      style={{ border: `1px dashed ${drag ? "var(--blue)" : "var(--border)"}`, borderRadius: 8, padding: "12px", textAlign: "center", background: drag ? "var(--blue-dim)" : "var(--surface)", transition: "all 0.2s", color: "var(--text2)", fontSize: 12 }}>
+      {drag ? "Soltar aquí" : "O arrastrar archivos aquí"}
     </div>
   );
 
-  if(loading) return <Spinner/>;
+  if (loading) return <Spinner />;
 
   // ── VISTA CARPETA ────────────────────────────────────────────────────────────
-  if(nav?.tipo==="carpeta"){
-    const carpeta=carpetas.find(c=>c.id===nav.id);
-    const materia=materias.find(m=>m.id===nav.materiaId);
-    const archsCarpeta=archivos.filter(a=>a.carpeta_id===nav.id);
-    return(
-      <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          <button className="btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>setNav(null)}>Archivos</button>
-          <span style={{color:"var(--text3)"}}>›</span>
-          <button className="btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>setNav({tipo:"materia",id:nav.materiaId})}>{materia?.nombre}</button>
-          <span style={{color:"var(--text3)"}}>›</span>
-          <span style={{fontSize:12,color:"var(--text)",fontWeight:600}}>{carpeta?.nombre}</span>
+  if (nav?.tipo === "carpeta") {
+    const carpeta = carpetas.find(c => c.id === nav.id);
+    const materia = materias.find(m => m.id === nav.materiaId);
+    const archsCarpeta = archivos.filter(a => a.carpeta_id === nav.id);
+    return (
+      <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <button className="btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setNav(null)}>Archivos</button>
+          <span style={{ color: "var(--text3)" }}>›</span>
+          <button className="btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setNav({ tipo: "materia", id: nav.materiaId })}>{materia?.nombre}</button>
+          <span style={{ color: "var(--text3)" }}>›</span>
+          <span style={{ fontSize: 12, color: "var(--text)", fontWeight: 600 }}>{carpeta?.nombre}</span>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
-          <span style={{fontSize:12,color:"var(--text2)"}}>{archsCarpeta.length} archivo{archsCarpeta.length!==1?"s":""}</span>
-          <SubirBtn materiaId={nav.materiaId} carpetaId={nav.id}/>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--text2)" }}>{archsCarpeta.length} archivo{archsCarpeta.length !== 1 ? "s" : ""}</span>
+          <SubirBtn materiaId={nav.materiaId} carpetaId={nav.id} />
         </div>
-        <DropZone materiaId={nav.materiaId} carpetaId={nav.id}/>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {archsCarpeta.length===0
-            ?<div style={{padding:20,textAlign:"center",color:"var(--text2)",fontSize:13}}>Esta carpeta está vacía</div>
-            :archsCarpeta.map(a=><ArchivoRow key={a.id} a={a}/>)
+        <DropZone materiaId={nav.materiaId} carpetaId={nav.id} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {archsCarpeta.length === 0
+            ? <div style={{ padding: 20, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Esta carpeta está vacía</div>
+            : archsCarpeta.map(a => <ArchivoRow key={a.id} a={a} />)
           }
         </div>
-        {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
+        {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { eliminar(confirm.archivo); setConfirm(null); }} />}
       </div>
     );
   }
 
   // ── VISTA MATERIA ────────────────────────────────────────────────────────────
-  if(nav?.tipo==="materia"){
-    const materia=materias.find(m=>m.id===nav.id);
-    const est=ESTADOS[materia?.estado];
-    const carpetasMateria=carpetas.filter(c=>c.materia_id===nav.id);
-    const archsDirectos=archivos.filter(a=>a.materia_id===nav.id&&!a.carpeta_id);
-    return(
-      <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          <button className="btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>setNav(null)}>Archivos</button>
-          <span style={{color:"var(--text3)"}}>›</span>
-          <span style={{fontSize:12,color:"var(--text)",fontWeight:600}}>{materia?.nombre}</span>
-          {est&&<span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>}
+  if (nav?.tipo === "materia") {
+    const materia = materias.find(m => m.id === nav.id);
+    const est = ESTADOS[materia?.estado];
+    const carpetasMateria = carpetas.filter(c => c.materia_id === nav.id);
+    const archsDirectos = archivos.filter(a => a.materia_id === nav.id && !a.carpeta_id);
+    return (
+      <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <button className="btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setNav(null)}>Archivos</button>
+          <span style={{ color: "var(--text3)" }}>›</span>
+          <span style={{ fontSize: 12, color: "var(--text)", fontWeight: 600 }}>{materia?.nombre}</span>
+          {est && <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>}
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
-          <button className="btn-ghost" style={{padding:"6px 12px",fontSize:12}} onClick={()=>setNuevaCarpeta(true)}>
-            <Icon name="plus" size={12}/>Nueva carpeta
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setNuevaCarpeta(true)}>
+            <Icon name="plus" size={12} />Nueva carpeta
           </button>
-          <SubirBtn materiaId={nav.id}/>
+          <SubirBtn materiaId={nav.id} />
         </div>
-        {carpetasMateria.length>0&&<>
+        {carpetasMateria.length > 0 && <>
           <p className="section-title">Carpetas</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:8}}>
-            {carpetasMateria.map(c=>{
-              const count=archivos.filter(a=>a.carpeta_id===c.id).length;
-              return(
-                <div key={c.id} className="card" style={{padding:"11px 13px",cursor:"pointer",transition:"border-color 0.15s",display:"flex",alignItems:"center",gap:9}}
-                  onClick={()=>setNav({tipo:"carpeta",id:c.id,materiaId:nav.id})}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-                  <span style={{fontSize:18,flexShrink:0}}>📁</span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.nombre}</div>
-                    <div style={{fontSize:10,color:"var(--text2)",marginTop:1}}>{count} archivo{count!==1?"s":""}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 }}>
+            {carpetasMateria.map(c => {
+              const count = archivos.filter(a => a.carpeta_id === c.id).length;
+              return (
+                <div key={c.id} className="card" style={{ padding: "11px 13px", cursor: "pointer", transition: "border-color 0.15s", display: "flex", alignItems: "center", gap: 9 }}
+                  onClick={() => setNav({ tipo: "carpeta", id: c.id, materiaId: nav.id })}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>📁</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre}</div>
+                    <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1 }}>{count} archivo{count !== 1 ? "s" : ""}</div>
                   </div>
-                  <button className="btn-danger" style={{padding:"3px 6px",flexShrink:0}} onClick={e=>{e.stopPropagation();setConfirmCarpeta(c);}}>
-                    <Icon name="trash" size={11}/>
+                  <button className="btn-danger" style={{ padding: "3px 6px", flexShrink: 0 }} onClick={e => { e.stopPropagation(); setConfirmCarpeta(c); }}>
+                    <Icon name="trash" size={11} />
                   </button>
                 </div>
               );
@@ -1409,226 +1343,226 @@ function VistaArchivos({materias,userId,showToast}){
           </div>
         </>}
         <p className="section-title">Archivos directos</p>
-        <DropZone materiaId={nav.id} carpetaId={null}/>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {archsDirectos.length===0
-            ?<div style={{padding:10,textAlign:"center",color:"var(--text2)",fontSize:12}}>Sin archivos directos</div>
-            :archsDirectos.map(a=><ArchivoRow key={a.id} a={a}/>)
+        <DropZone materiaId={nav.id} carpetaId={null} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {archsDirectos.length === 0
+            ? <div style={{ padding: 10, textAlign: "center", color: "var(--text2)", fontSize: 12 }}>Sin archivos directos</div>
+            : archsDirectos.map(a => <ArchivoRow key={a.id} a={a} />)
           }
         </div>
-        {nuevaCarpeta&&(
-          <Modal title="Nueva carpeta" onClose={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {nuevaCarpeta && (
+          <Modal title="Nueva carpeta" onClose={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <Lbl>Nombre</Lbl>
-                <input style={{width:"100%"}} value={nombreCarpeta} onChange={e=>setNombreCarpeta(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&crearCarpeta()} placeholder="Ej: Parciales, Apuntes, TPs..."/>
+                <input style={{ width: "100%" }} value={nombreCarpeta} onChange={e => setNombreCarpeta(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && crearCarpeta()} placeholder="Ej: Parciales, Apuntes, TPs..." />
               </div>
-              <div style={{display:"flex",gap:8}}>
-                <button className="btn-primary" style={{flex:1}} onClick={crearCarpeta}>Crear</button>
-                <button className="btn-ghost" onClick={()=>{setNuevaCarpeta(false);setNombreCarpeta("");}}>Cancelar</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn-primary" style={{ flex: 1 }} onClick={crearCarpeta}>Crear</button>
+                <button className="btn-ghost" onClick={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>Cancelar</button>
               </div>
             </div>
           </Modal>
         )}
-        {confirm&&<ConfirmModal nombre={confirm.nombre} onClose={()=>setConfirm(null)} onConfirm={()=>{eliminar(confirm.archivo);setConfirm(null);}}/>}
-        {confirmCarpeta&&<ConfirmModal nombre={`carpeta "${confirmCarpeta.nombre}"`} onClose={()=>setConfirmCarpeta(null)} onConfirm={()=>{eliminarCarpeta(confirmCarpeta);setConfirmCarpeta(null);}}/>}
+        {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { eliminar(confirm.archivo); setConfirm(null); }} />}
+        {confirmCarpeta && <ConfirmModal nombre={`carpeta "${confirmCarpeta.nombre}"`} onClose={() => setConfirmCarpeta(null)} onConfirm={() => { eliminarCarpeta(confirmCarpeta); setConfirmCarpeta(null); }} />}
       </div>
     );
   }
 
   // ── VISTA RAÍZ ───────────────────────────────────────────────────────────────
-  const materiasConContenido=materias.filter(m=>archivos.some(a=>a.materia_id===m.id)||carpetas.some(c=>c.materia_id===m.id));
-  const materiasVacias=materias.filter(m=>!archivos.some(a=>a.materia_id===m.id)&&!carpetas.some(c=>c.materia_id===m.id));
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:13}}>
-      <p style={{fontSize:13,color:"var(--text2)"}}>Seleccioná una materia para ver o subir archivos.</p>
-      {materiasConContenido.length>0&&<>
+  const materiasConContenido = materias.filter(m => archivos.some(a => a.materia_id === m.id) || carpetas.some(c => c.materia_id === m.id));
+  const materiasVacias = materias.filter(m => !archivos.some(a => a.materia_id === m.id) && !carpetas.some(c => c.materia_id === m.id));
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+      <p style={{ fontSize: 13, color: "var(--text2)" }}>Seleccioná una materia para ver o subir archivos.</p>
+      {materiasConContenido.length > 0 && <>
         <p className="section-title">Materias con archivos</p>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {materiasConContenido.map(m=>{
-            const est=ESTADOS[m.estado];
-            const totalA=archivos.filter(a=>a.materia_id===m.id).length;
-            const totalC=carpetas.filter(c=>c.materia_id===m.id).length;
-            return(
-              <div key={m.id} className="card" style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"border-color 0.15s"}}
-                onClick={()=>setNav({tipo:"materia",id:m.id})}
-                onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
-                onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-                <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:600,marginBottom:3}}>{m.nombre}</div>
-                  <div style={{fontSize:11,color:"var(--text2)",display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {totalA>0&&<span>{totalA} archivo{totalA!==1?"s":""}</span>}
-                    {totalC>0&&<span>{totalC} carpeta{totalC!==1?"s":""}</span>}
-                    <span className="tag" style={{background:est.bg,color:est.color}}>{est.label}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {materiasConContenido.map(m => {
+            const est = ESTADOS[m.estado];
+            const totalA = archivos.filter(a => a.materia_id === m.id).length;
+            const totalC = carpetas.filter(c => c.materia_id === m.id).length;
+            return (
+              <div key={m.id} className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color 0.15s" }}
+                onClick={() => setNav({ tipo: "materia", id: m.id })}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{m.nombre}</div>
+                  <div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {totalA > 0 && <span>{totalA} archivo{totalA !== 1 ? "s" : ""}</span>}
+                    {totalC > 0 && <span>{totalC} carpeta{totalC !== 1 ? "s" : ""}</span>}
+                    <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
                   </div>
                 </div>
-                <Icon name="chevronR" size={16} color="var(--text3)"/>
+                <Icon name="chevronR" size={16} color="var(--text3)" />
               </div>
             );
           })}
         </div>
       </>}
-      {materiasVacias.length>0&&<>
-        <p className="section-title" style={{marginTop:4}}>Otras materias</p>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {materiasVacias.map(m=>{
-            const est=ESTADOS[m.estado];
-            return(
-              <div key={m.id} className="card" style={{padding:"10px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",opacity:0.55,transition:"all 0.15s"}}
-                onClick={()=>setNav({tipo:"materia",id:m.id})}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--border2)";e.currentTarget.style.opacity="1";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.opacity="0.55";}}>
-                <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:est.color,flexShrink:0}}/>
-                <span style={{flex:1,fontSize:13,fontWeight:500}}>{m.nombre}</span>
-                <span style={{fontSize:11,color:"var(--text3)"}}>Sin archivos</span>
-                <Icon name="chevronR" size={14} color="var(--text3)"/>
+      {materiasVacias.length > 0 && <>
+        <p className="section-title" style={{ marginTop: 4 }}>Otras materias</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {materiasVacias.map(m => {
+            const est = ESTADOS[m.estado];
+            return (
+              <div key={m.id} className="card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", opacity: 0.55, transition: "all 0.15s" }}
+                onClick={() => setNav({ tipo: "materia", id: m.id })}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border2)"; e.currentTarget.style.opacity = "1"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.opacity = "0.55"; }}>
+                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{m.nombre}</span>
+                <span style={{ fontSize: 11, color: "var(--text3)" }}>Sin archivos</span>
+                <Icon name="chevronR" size={14} color="var(--text3)" />
               </div>
             );
           })}
         </div>
       </>}
-      {materias.length===0&&<div className="card" style={{padding:28,textAlign:"center",color:"var(--text2)",fontSize:13}}>Primero agregá materias para organizar tus archivos</div>}
+      {materias.length === 0 && <div className="card" style={{ padding: 28, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Primero agregá materias para organizar tus archivos</div>}
     </div>
   );
 }
 
 // ─── ASISTENTE IA ─────────────────────────────────────────────────────────────
-function VistaAsistente({materias,eventos}){
-  const [historial,setHistorial]=useState(()=>{
-    try{return JSON.parse(localStorage.getItem("utn_historial")||"{}");}catch{return{};}
+function VistaAsistente({ materias, eventos }) {
+  const [historial, setHistorial] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("utn_historial") || "{}"); } catch { return {}; }
   });
-  const [modelo,setModelo]=useState(()=>localStorage.getItem("utn_modelo")||"claude");
-  const [materiaId,setMateriaId]=useState(materias.find(m=>["cursando","regular"].includes(m.estado))?.id||materias[0]?.id||null);
-  const [modo,setModo]=useState(null);
-  const [msgs,setMsgs]=useState([]);
-  const [input,setInput]=useState("");
-  const [loading,setLoading]=useState(false);
-  const bottomRef=useRef(null);
-  const materia=materias.find(m=>m.id===materiaId);
+  const [modelo, setModelo] = useState(() => localStorage.getItem("utn_modelo") || "claude");
+  const [materiaId, setMateriaId] = useState(materias.find(m => ["cursando", "regular"].includes(m.estado))?.id || materias[0]?.id || null);
+  const [modo, setModo] = useState(null);
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+  const materia = materias.find(m => m.id === materiaId);
 
   // Cambio de modelo → persiste en localStorage
-  const cambiarModelo=(m)=>{setModelo(m);localStorage.setItem("utn_modelo",m);};
+  const cambiarModelo = (m) => { setModelo(m); localStorage.setItem("utn_modelo", m); };
 
   // Cargar historial al cambiar materia/modo
-  useEffect(()=>{
-    if(materiaId&&modo){const k=`${materiaId}_${modo}`;setMsgs(historial[k]||[]);}
-  },[materiaId,modo]);
+  useEffect(() => {
+    if (materiaId && modo) { const k = `${materiaId}_${modo}`; setMsgs(historial[k] || []); }
+  }, [materiaId, modo]);
 
   // Guardar historial al cambiar msgs (slice -20)
-  useEffect(()=>{
-    if(materiaId&&modo&&msgs.length>0){
-      const k=`${materiaId}_${modo}`;
-      const nuevo={...historial,[k]:msgs.slice(-20)};
+  useEffect(() => {
+    if (materiaId && modo && msgs.length > 0) {
+      const k = `${materiaId}_${modo}`;
+      const nuevo = { ...historial, [k]: msgs.slice(-20) };
       setHistorial(nuevo);
-      localStorage.setItem("utn_historial",JSON.stringify(nuevo));
+      localStorage.setItem("utn_historial", JSON.stringify(nuevo));
     }
-  },[msgs]);
+  }, [msgs]);
 
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[msgs,loading]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
 
-  const mkSystem=(m)=>{
-    const ev=eventos.filter(e=>e.materia_id===materiaId).map(e=>`${e.tipo}: ${e.titulo} el ${e.fecha}`).join(", ")||"ninguno";
-    const base=`Sos un asistente de estudio universitario para la materia "${materia?.nombre}" de UTN Sistemas Argentina. Año ${materia?.año}, cuatrimestre ${materia?.cuatrimestre}. Estado: ${ESTADOS[materia?.estado]?.label}. Eventos: ${ev}. Respondé siempre en español argentino, claro y directo.`;
+  const mkSystem = (m) => {
+    const ev = eventos.filter(e => e.materia_id === materiaId).map(e => `${e.tipo}: ${e.titulo} el ${e.fecha}`).join(", ") || "ninguno";
+    const base = `Sos un asistente de estudio universitario para la materia "${materia?.nombre}" de UTN Sistemas Argentina. Año ${materia?.año}, cuatrimestre ${materia?.cuatrimestre}. Estado: ${ESTADOS[materia?.estado]?.label}. Eventos: ${ev}. Respondé siempre en español argentino, claro y directo.`;
     return {
-      tutor:`${base} Modo TUTOR: evaluá si el alumno entendió los temas. Hacé preguntas concretas de a una, esperá respuesta, evaluá. No des la respuesta antes. Empezá preguntando qué tema quiere repasar.`,
-      planificar:`${base} Modo PLANIFICADOR: ayudá a organizar un plan de estudio. Preguntá cuántos días y horas disponibles tiene. Luego armá un plan día por día.`,
-      tp:`${base} Modo TP: ayudá con trabajos prácticos guiando sin dar la solución directa. Empezá preguntando en qué consiste el TP.`,
-      libre:`${base} Modo LIBRE: respondé cualquier consulta académica. Saludo breve y preguntá en qué ayudar.`,
-    }[m]||base;
+      tutor: `${base} Modo TUTOR: evaluá si el alumno entendió los temas. Hacé preguntas concretas de a una, esperá respuesta, evaluá. No des la respuesta antes. Empezá preguntando qué tema quiere repasar.`,
+      planificar: `${base} Modo PLANIFICADOR: ayudá a organizar un plan de estudio. Preguntá cuántos días y horas disponibles tiene. Luego armá un plan día por día.`,
+      tp: `${base} Modo TP: ayudá con trabajos prácticos guiando sin dar la solución directa. Empezá preguntando en qué consiste el TP.`,
+      libre: `${base} Modo LIBRE: respondé cualquier consulta académica. Saludo breve y preguntá en qué ayudar.`,
+    }[m] || base;
   };
 
-  const callIA=async(systemPrompt,messages)=>{
-    const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:systemPrompt,messages,modelo})});
-    const data=await res.json();
-    if(data.error) throw new Error(data.error);
+  const callIA = async (systemPrompt, messages) => {
+    const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: systemPrompt, messages, modelo }) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
     return data.text;
   };
 
-  const iniciarModo=async(m)=>{
+  const iniciarModo = async (m) => {
     setModo(m);
-    const k=`${materiaId}_${m}`;
-    if(historial[k]?.length>0){setMsgs(historial[k]);return;}
-    setMsgs([]);setLoading(true);
-    try{
-      const txt=await callIA(mkSystem(m),[{role:"user",content:"Hola, empecemos."}]);
-      setMsgs([{role:"assistant",content:txt}]);
-    }catch(e){setMsgs([{role:"assistant",content:"Hola, estoy listo. ¿En qué te puedo ayudar?"}]);}
+    const k = `${materiaId}_${m}`;
+    if (historial[k]?.length > 0) { setMsgs(historial[k]); return; }
+    setMsgs([]); setLoading(true);
+    try {
+      const txt = await callIA(mkSystem(m), [{ role: "user", content: "Hola, empecemos." }]);
+      setMsgs([{ role: "assistant", content: txt }]);
+    } catch (e) { setMsgs([{ role: "assistant", content: "Hola, estoy listo. ¿En qué te puedo ayudar?" }]); }
     setLoading(false);
   };
 
-  const enviar=async()=>{
-    if(!input.trim()||loading)return;
-    const userMsg={role:"user",content:input.trim()};
-    const newMsgs=[...msgs,userMsg];
-    setMsgs(newMsgs);setInput("");setLoading(true);
-    try{
-      const txt=await callIA(mkSystem(modo),newMsgs.map(m=>({role:m.role,content:m.content})));
-      setMsgs(m=>[...m,{role:"assistant",content:txt}]);
-    }catch(e){setMsgs(m=>[...m,{role:"assistant",content:`Error: ${e.message}`}]);}
+  const enviar = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const newMsgs = [...msgs, userMsg];
+    setMsgs(newMsgs); setInput(""); setLoading(true);
+    try {
+      const txt = await callIA(mkSystem(modo), newMsgs.map(m => ({ role: m.role, content: m.content })));
+      setMsgs(m => [...m, { role: "assistant", content: txt }]);
+    } catch (e) { setMsgs(m => [...m, { role: "assistant", content: `Error: ${e.message}` }]); }
     setLoading(false);
   };
 
-  const limpiar=()=>{
+  const limpiar = () => {
     setMsgs([]);
-    if(materiaId&&modo){
-      const k=`${materiaId}_${modo}`;
-      const nuevo={...historial};delete nuevo[k];
+    if (materiaId && modo) {
+      const k = `${materiaId}_${modo}`;
+      const nuevo = { ...historial }; delete nuevo[k];
       setHistorial(nuevo);
-      localStorage.setItem("utn_historial",JSON.stringify(nuevo));
+      localStorage.setItem("utn_historial", JSON.stringify(nuevo));
     }
   };
 
-  const modeloInfo=MODELOS_IA.find(m=>m.id===modelo);
+  const modeloInfo = MODELOS_IA.find(m => m.id === modelo);
 
-  if(!modo) return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",gap:20}}>
+  if (!modo) return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Selector de materia */}
       <div>
         <Lbl>Seleccioná una materia</Lbl>
-        <select style={{width:"100%",maxWidth:420}} value={materiaId||""} onChange={e=>setMateriaId(e.target.value)}>
-          {materias.map(m=><option key={m.id} value={m.id}>{m.nombre} ({ESTADOS[m.estado]?.label})</option>)}
+        <select style={{ width: "100%", maxWidth: 420 }} value={materiaId || ""} onChange={e => setMateriaId(e.target.value)}>
+          {materias.map(m => <option key={m.id} value={m.id}>{m.nombre} ({ESTADOS[m.estado]?.label})</option>)}
         </select>
       </div>
 
-      {materia&&<div className="card" style={{padding:"14px 16px",borderLeft:"3px solid var(--blue)"}}>
-        <div style={{fontSize:14,fontWeight:600}}>{materia.nombre}</div>
-        <div style={{fontSize:11,color:"var(--text2)",marginTop:2}}>Año {materia.año} · {materia.cuatrimestre}° cuat. · <span style={{color:ESTADOS[materia.estado]?.color}}>{ESTADOS[materia.estado]?.label}</span></div>
+      {materia && <div className="card" style={{ padding: "14px 16px", borderLeft: "3px solid var(--blue)" }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{materia.nombre}</div>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>Año {materia.año} · {materia.cuatrimestre}° cuat. · <span style={{ color: ESTADOS[materia.estado]?.color }}>{ESTADOS[materia.estado]?.label}</span></div>
       </div>}
 
       {/* Motor de IA */}
       <div>
         <p className="section-title">Motor de IA</p>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {MODELOS_IA.map(m=>(
-            <button key={m.id} onClick={()=>cambiarModelo(m.id)} style={{
-              padding:"8px 16px",borderRadius:6,fontSize:13,fontWeight:600,
-              border:`1px solid ${modelo===m.id?m.color:"var(--border)"}`,
-              background:modelo===m.id?`${m.color}18`:"transparent",
-              color:modelo===m.id?m.color:"var(--text2)",
-              transition:"all 0.15s"
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {MODELOS_IA.map(m => (
+            <button key={m.id} onClick={() => cambiarModelo(m.id)} style={{
+              padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+              border: `1px solid ${modelo === m.id ? m.color : "var(--border)"}`,
+              background: modelo === m.id ? `${m.color}18` : "transparent",
+              color: modelo === m.id ? m.color : "var(--text2)",
+              transition: "all 0.15s"
             }}>{m.label}</button>
           ))}
         </div>
-        <div style={{fontSize:11,color:"var(--text3)",marginTop:8}}>
-          Motor seleccionado: <span style={{color:modeloInfo?.color,fontWeight:600}}>{modeloInfo?.label}</span>
+        <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 8 }}>
+          Motor seleccionado: <span style={{ color: modeloInfo?.color, fontWeight: 600 }}>{modeloInfo?.label}</span>
         </div>
       </div>
 
       {/* Modos */}
       <div>
         <p className="section-title">Elegí un modo</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
-          {MODOS_IA.map(mo=>{
-            const tiene=historial[`${materiaId}_${mo.id}`]?.length>0;
-            return(
-              <button key={mo.id} onClick={()=>iniciarModo(mo.id)} style={{background:"var(--surface)",border:`1px solid ${tiene?"var(--blue)":"var(--border)"}`,borderRadius:10,padding:"16px",textAlign:"left",transition:"all 0.15s",cursor:"pointer"}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.background="var(--blue-dim)";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=tiene?"var(--blue)":"var(--border)";e.currentTarget.style.background="var(--surface)";}}>
-                <div style={{fontFamily:"'Barlow Condensed'",fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:5}}>{mo.label}</div>
-                <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.5}}>{mo.desc}</div>
-                {tiene&&<div style={{fontSize:10,color:"var(--blue)",marginTop:8,fontWeight:500}}>Sesión guardada · Continuar</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }}>
+          {MODOS_IA.map(mo => {
+            const tiene = historial[`${materiaId}_${mo.id}`]?.length > 0;
+            return (
+              <button key={mo.id} onClick={() => iniciarModo(mo.id)} style={{ background: "var(--surface)", border: `1px solid ${tiene ? "var(--blue)" : "var(--border)"}`, borderRadius: 10, padding: "16px", textAlign: "left", transition: "all 0.15s", cursor: "pointer" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.background = "var(--blue-dim)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = tiene ? "var(--blue)" : "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}>
+                <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 5 }}>{mo.label}</div>
+                <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.5 }}>{mo.desc}</div>
+                {tiene && <div style={{ fontSize: 10, color: "var(--blue)", marginTop: 8, fontWeight: 500 }}>Sesión guardada · Continuar</div>}
               </button>
             );
           })}
@@ -1637,329 +1571,341 @@ function VistaAsistente({materias,eventos}){
     </div>
   );
 
-  const modoInfo=MODOS_IA.find(m=>m.id===modo);
-  const userMsgs=msgs.filter(m=>m.role==="user").length;
-  const totalMsgs=msgs.length;
+  const modoInfo = MODOS_IA.find(m => m.id === modo);
+  const userMsgs = msgs.filter(m => m.role === "user").length;
+  const totalMsgs = msgs.length;
 
-  return(
-    <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",minHeight:400}}>
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 130px)", minHeight: 400 }}>
       {/* Header */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-        <button className="btn-ghost" style={{padding:"6px 11px",fontSize:12}} onClick={()=>setModo(null)}><Icon name="chevronL" size={13}/>Volver</button>
-        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,fontWeight:600}}>{materia?.nombre}</span>
-          <span className="tag" style={{background:"var(--blue-dim)",color:"var(--blue)"}}>{modoInfo?.label}</span>
-          <span className="tag" style={{background:`${modeloInfo?.color}18`,color:modeloInfo?.color,fontSize:10}}>{modeloInfo?.label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <button className="btn-ghost" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setModo(null)}><Icon name="chevronL" size={13} />Volver</button>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{materia?.nombre}</span>
+          <span className="tag" style={{ background: "var(--blue-dim)", color: "var(--blue)" }}>{modoInfo?.label}</span>
+          <span className="tag" style={{ background: `${modeloInfo?.color}18`, color: modeloInfo?.color, fontSize: 10 }}>{modeloInfo?.label}</span>
         </div>
-        <button className="btn-ghost" style={{padding:"6px 10px"}} onClick={limpiar} title="Limpiar conversación"><Icon name="refresh" size={13}/></button>
+        <button className="btn-ghost" style={{ padding: "6px 10px" }} onClick={limpiar} title="Limpiar conversación"><Icon name="refresh" size={13} /></button>
       </div>
 
       {/* Mensajes */}
-      <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingRight:4}}>
-        {msgs.length===0&&!loading&&<div style={{textAlign:"center",color:"var(--text2)",fontSize:13,padding:"40px 20px"}}>Iniciando sesión...</div>}
-        {msgs.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-            <div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:10,fontSize:13,lineHeight:1.6,background:m.role==="user"?"var(--blue)":"var(--surface2)",color:m.role==="user"?"#fff":"var(--text)",borderBottomRightRadius:m.role==="user"?2:10,borderBottomLeftRadius:m.role==="assistant"?2:10,border:m.role==="assistant"?"1px solid var(--border)":"none",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{m.content}</div>
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingRight: 4 }}>
+        {msgs.length === 0 && !loading && <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "40px 20px" }}>Iniciando sesión...</div>}
+        {msgs.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 10, fontSize: 13, lineHeight: 1.6, background: m.role === "user" ? "var(--blue)" : "var(--surface2)", color: m.role === "user" ? "#fff" : "var(--text)", borderBottomRightRadius: m.role === "user" ? 2 : 10, borderBottomLeftRadius: m.role === "assistant" ? 2 : 10, border: m.role === "assistant" ? "1px solid var(--border)" : "none", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.content}</div>
           </div>
         ))}
-        {loading&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{padding:"10px 16px",borderRadius:10,background:"var(--surface2)",border:"1px solid var(--border)",display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=><span key={i} className="pulse" style={{width:7,height:7,borderRadius:"50%",background:"var(--blue)",display:"inline-block",animationDelay:`${i*0.2}s`}}/>)}</div></div>}
-        <div ref={bottomRef}/>
+        {loading && <div style={{ display: "flex", justifyContent: "flex-start" }}><div style={{ padding: "10px 16px", borderRadius: 10, background: "var(--surface2)", border: "1px solid var(--border)", display: "flex", gap: 5, alignItems: "center" }}>{[0, 1, 2].map(i => <span key={i} className="pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--blue)", display: "inline-block", animationDelay: `${i * 0.2}s` }} />)}</div></div>}
+        <div ref={bottomRef} />
       </div>
 
       {/* Contador de mensajes */}
-      <div style={{textAlign:"center",fontSize:11,color:"var(--text3)",padding:"6px 0 4px"}}>
-        {totalMsgs} {totalMsgs===1?"mensaje":"mensajes"} en esta sesión
+      <div style={{ textAlign: "center", fontSize: 11, color: "var(--text3)", padding: "6px 0 4px" }}>
+        {totalMsgs} {totalMsgs === 1 ? "mensaje" : "mensajes"} en esta sesión
       </div>
 
       {/* Input */}
-      <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-        <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();enviar();}}} placeholder="Escribí tu mensaje... (Enter para enviar)" rows={2} style={{flex:1,resize:"none",borderRadius:8,lineHeight:1.5,fontSize:13,padding:"10px 12px"}}/>
-        <button className="btn-primary" onClick={enviar} disabled={loading||!input.trim()} style={{padding:"10px 14px",opacity:loading||!input.trim()?0.5:1}}><Icon name="send" size={15} color="#fff"/></button>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} placeholder="Escribí tu mensaje... (Enter para enviar)" rows={2} style={{ flex: 1, resize: "none", borderRadius: 8, lineHeight: 1.5, fontSize: 13, padding: "10px 12px" }} />
+        <button className="btn-primary" onClick={enviar} disabled={loading || !input.trim()} style={{ padding: "10px 14px", opacity: loading || !input.trim() ? 0.5 : 1 }}><Icon name="send" size={15} color="#fff" /></button>
       </div>
     </div>
   );
 }
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-const NAV=[
-  {id:"dashboard",label:"Dashboard",icon:"dashboard"},
-  {id:"materias", label:"Materias", icon:"materias" },
-  {id:"horarios", label:"Horarios", icon:"horarios" },
-  {id:"eventos",  label:"Eventos",  icon:"eventos"  },
-  {id:"archivos", label:"Archivos", icon:"archivos" },
-  {id:"asistente",label:"IA",       icon:"asistente"},
+const NAV = [
+  { id: "dashboard", label: "Dashboard", icon: "dashboard" },
+  { id: "materias", label: "Materias", icon: "materias" },
+  { id: "horarios", label: "Horarios", icon: "horarios" },
+  { id: "eventos", label: "Eventos", icon: "eventos" },
+  { id: "archivos", label: "Archivos", icon: "archivos" },
+  { id: "asistente", label: "IA", icon: "asistente" },
 ];
-const TITULOS={dashboard:"Dashboard",materias:"Mis Materias",horarios:"Horario Semanal",eventos:"Eventos y Fechas",archivos:"Archivos",asistente:"Asistente IA"};
+const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Eventos y Fechas", archivos: "Archivos", asistente: "Asistente IA" };
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
-export default function App(){
-  const isMobile=useIsMobile();
-  const [session,setSession]=useState(undefined);
-  const [vista,setVista]=useState("dashboard");
-  const [sideOpen,setSideOpen]=useState(!isMobile);
-  const [materias,setMaterias]=useState([]);
-  const [eventos,setEventos]=useState([]);
-  const [loadingData,setLoadingData]=useState(true);
-  const {toasts,show:showToast}=useToast();
-  const [showNotifs,setShowNotifs]=useState(false);
-  const [showPushConfig,setShowPushConfig]=useState(false);
-  const [iaActiva,setIaActiva]=useState(false);
-  const push=usePushNotifications(session?.user?.id);
-  const userId=session?.user?.id;
-  const {estado:pushEstado, activar:activarPush, desactivar:desactivarPush}=usePushNotifications(userId); // se carga desde el perfil del usuario
+export default function App() {
+  const isMobile = useIsMobile();
+  const [session, setSession] = useState(undefined);
+  const [vista, setVista] = useState("dashboard");
+  const [sideOpen, setSideOpen] = useState(!isMobile);
+  const [materias, setMaterias] = useState([]);
+  const [eventos, setEventos] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const { toasts, show: showToast } = useToast();
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [showPushConfig, setShowPushConfig] = useState(false);
+  const [iaActiva, setIaActiva] = useState(false);
+
+  const userId = session?.user?.id;
+  const { estado: pushEstado, activar: activarPush, desactivar: desactivarPush } = usePushNotifications(userId); // se carga desde el perfil del usuario
 
   // Sincronizar sideOpen con isMobile al cambiar tamaño
-  useEffect(()=>{setSideOpen(!isMobile);},[isMobile]);
+  useEffect(() => { setSideOpen(!isMobile); }, [isMobile]);
 
-  useEffect(()=>{
-    sb.auth.getSession().then(({data:{session}})=>setSession(session));
-    const {data:{subscription}}=sb.auth.onAuthStateChange((_,s)=>setSession(s));
-    return()=>subscription.unsubscribe();
-  },[]);
+  useEffect(() => {
+    sb.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
 
-  useEffect(()=>{
-    if(session) cargarTodo();
-    else{setMaterias([]);setEventos([]);setLoadingData(false);}
-  },[session]);
+  useEffect(() => {
+    if (session) cargarTodo();
+    else { setMaterias([]); setEventos([]); setLoadingData(false); }
+  }, [session]);
 
-  const cargarTodo=async()=>{
+  const cargarTodo = async () => {
     setLoadingData(true);
-    const [{data:m,error:em},{data:e,error:ee}]=await Promise.all([
+    const [{ data: m, error: em }, { data: e, error: ee }] = await Promise.all([
       sb.from("materias").select("*").order("año").order("cuatrimestre"),
       sb.from("eventos").select("*").order("fecha"),
     ]);
-    if(em) showToast(em.message);
-    if(ee) showToast(ee.message);
-    setMaterias(m||[]);
-    setEventos(e||[]);
+    if (em) showToast(em.message);
+    if (ee) showToast(ee.message);
+    setMaterias(m || []);
+    setEventos(e || []);
     // Cargar preferencias del usuario (ia_activa)
-    const {data:perfil}=await sb.from("perfiles").select("ia_activa").eq("id",session.user.id).single();
-    if(perfil) setIaActiva(!!perfil.ia_activa);
+    const { data: perfil } = await sb.from("perfiles").select("ia_activa").eq("id", session.user.id).single();
+    if (perfil) setIaActiva(!!perfil.ia_activa);
     setLoadingData(false);
     // Notificaciones automáticas si push está activo
-    if(Notification.permission==="granted"&&m&&e){
-      enviarNotifsAutomaticas(m,e,session.user.id);
+    if (Notification.permission === "granted" && m && e) {
+      enviarNotifsAutomaticas(m, e, session.user.id);
     }
   };
 
-  const enviarNotifsAutomaticas=async(mats,evs,uid)=>{
-    const hoy=new Date();
-    const diasSem=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-    const dHoy=diasSem[hoy.getDay()];
+  const enviarNotifsAutomaticas = async (mats, evs, uid) => {
+    const hoy = new Date();
+    const diasSem = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    const dHoy = diasSem[hoy.getDay()];
     // Materias de hoy
-    const matHoy=mats.filter(m=>m.dias?.includes(dHoy)&&["cursando","regular"].includes(m.estado));
-    if(matHoy.length>0){
-      await fetch("/api/notify?action=send",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({userId:uid,
-          title:`Tenés ${matHoy.length} clase${matHoy.length!==1?"s":""} hoy`,
-          body:matHoy.map(m=>`${m.horarios?.[dHoy]||m.horario||""} ${m.nombre}`).join(" · "),
-          url:"/"})}).catch(()=>{});
+    const matHoy = mats.filter(m => m.dias?.includes(dHoy) && ["cursando", "regular"].includes(m.estado));
+    if (matHoy.length > 0) {
+      await fetch("/api/notify?action=send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: uid,
+          title: `Tenés ${matHoy.length} clase${matHoy.length !== 1 ? "s" : ""} hoy`,
+          body: matHoy.map(m => `${m.horarios?.[dHoy] || m.horario || ""} ${m.nombre}`).join(" · "),
+          url: "/"
+        })
+      }).catch(() => { });
     }
     // Eventos próximas 24hs
-    const prox=evs.filter(ev=>{
-      const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
-      return d>=0&&d<=1;
+    const prox = evs.filter(ev => {
+      const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
+      return d >= 0 && d <= 1;
     });
-    for(const ev of prox){
-      const mat=mats.find(m=>m.id===ev.materia_id);
-      const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
-      await fetch("/api/notify?action=send",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({userId:uid,
-          title:`${d===0?"Hoy":"Mañana"}: ${ev.titulo}`,
-          body:`${mat?.nombre||""}${ev.descripcion?" · "+ev.descripcion:""}`,
-          url:"/"})}).catch(()=>{});
+    for (const ev of prox) {
+      const mat = mats.find(m => m.id === ev.materia_id);
+      const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
+      await fetch("/api/notify?action=send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: uid,
+          title: `${d === 0 ? "Hoy" : "Mañana"}: ${ev.titulo}`,
+          body: `${mat?.nombre || ""}${ev.descripcion ? " · " + ev.descripcion : ""}`,
+          url: "/"
+        })
+      }).catch(() => { });
     }
   };
 
   // PWA
-  useEffect(()=>{
-    const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="80" fill="#0b0e13"/><text x="256" y="230" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="130" fill="#4a90d9">UTN</text><text x="256" y="330" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="60" fill="#7d8899">TRACKER</text></svg>`;
-    const url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"}));
-    let lk=document.querySelector("link[rel='icon']");
-    if(!lk){lk=document.createElement("link");lk.rel="icon";document.head.appendChild(lk);}
-    lk.type="image/svg+xml";lk.href=url;
-    document.title="UTN Tracker";
-    let meta=document.querySelector("meta[name='theme-color']");
-    if(!meta){meta=document.createElement("meta");meta.name="theme-color";document.head.appendChild(meta);}
-    meta.content="#0b0e13";
-    return()=>URL.revokeObjectURL(url);
-  },[]);
+  useEffect(() => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="80" fill="#0b0e13"/><text x="256" y="230" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="130" fill="#4a90d9">UTN</text><text x="256" y="330" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="60" fill="#7d8899">TRACKER</text></svg>`;
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    let lk = document.querySelector("link[rel='icon']");
+    if (!lk) { lk = document.createElement("link"); lk.rel = "icon"; document.head.appendChild(lk); }
+    lk.type = "image/svg+xml"; lk.href = url;
+    document.title = "UTN Tracker";
+    let meta = document.querySelector("meta[name='theme-color']");
+    if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
+    meta.content = "#0b0e13";
+    return () => URL.revokeObjectURL(url);
+  }, []);
 
   // CRUD con toast en errores
-  const addMateria=async(f)=>{
-    const {data,error}=await sb.from("materias").insert({...f,user_id:session.user.id,nota:f.nota||null}).select().single();
-    if(error){showToast(error.message);return;}
-    setMaterias(m=>[...m,data]);
+  const addMateria = async (f) => {
+    const { data, error } = await sb.from("materias").insert({ ...f, user_id: session.user.id, nota: f.nota || null }).select().single();
+    if (error) { showToast(error.message); return; }
+    setMaterias(m => [...m, data]);
   };
-  const editMateria=async(id,f)=>{
-    const {data,error}=await sb.from("materias").update({...f,nota:f.nota||null}).eq("id",id).select().single();
-    if(error){showToast(error.message);return;}
-    setMaterias(m=>m.map(x=>x.id===id?data:x));
+  const editMateria = async (id, f) => {
+    const { data, error } = await sb.from("materias").update({ ...f, nota: f.nota || null }).eq("id", id).select().single();
+    if (error) { showToast(error.message); return; }
+    setMaterias(m => m.map(x => x.id === id ? data : x));
   };
-  const delMateria=async(id)=>{
-    const {error}=await sb.from("materias").delete().eq("id",id);
-    if(error){showToast(error.message);return;}
-    setMaterias(m=>m.filter(x=>x.id!==id));
+  const delMateria = async (id) => {
+    const { error } = await sb.from("materias").delete().eq("id", id);
+    if (error) { showToast(error.message); return; }
+    setMaterias(m => m.filter(x => x.id !== id));
   };
-  const addEvento=async(f)=>{
-    const {data,error}=await sb.from("eventos").insert({...f,user_id:session.user.id}).select().single();
-    if(error){showToast(error.message);return;}
-    setEventos(e=>[...e,data]);
+  const addEvento = async (f) => {
+    const { data, error } = await sb.from("eventos").insert({ ...f, user_id: session.user.id }).select().single();
+    if (error) { showToast(error.message); return; }
+    setEventos(e => [...e, data]);
   };
-  const editEvento=async(id,f)=>{
-    const {data,error}=await sb.from("eventos").update(f).eq("id",id).select().single();
-    if(error){showToast(error.message);return;}
-    setEventos(e=>e.map(x=>x.id===id?data:x));
+  const editEvento = async (id, f) => {
+    const { data, error } = await sb.from("eventos").update(f).eq("id", id).select().single();
+    if (error) { showToast(error.message); return; }
+    setEventos(e => e.map(x => x.id === id ? data : x));
   };
-  const delEvento=async(id)=>{
-    const {error}=await sb.from("eventos").delete().eq("id",id);
-    if(error){showToast(error.message);return;}
-    setEventos(e=>e.filter(x=>x.id!==id));
+  const delEvento = async (id) => {
+    const { error } = await sb.from("eventos").delete().eq("id", id);
+    if (error) { showToast(error.message); return; }
+    setEventos(e => e.filter(x => x.id !== id));
   };
 
-  if(session===undefined) return <div style={{minHeight:"100vh",background:"#0b0e13",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{G}</style><Spinner/></div>;
-  if(!session) return <AuthPage onAuth={()=>sb.auth.getSession().then(({data:{session}})=>setSession(session))}/>;
+  if (session === undefined) return <div style={{ minHeight: "100vh", background: "#0b0e13", display: "flex", alignItems: "center", justifyContent: "center" }}><style>{G}</style><Spinner /></div>;
+  if (!session) return <AuthPage onAuth={() => sb.auth.getSession().then(({ data: { session } }) => setSession(session))} />;
 
-  return(
+  return (
     <>
       <style>{G}</style>
-      <div style={{display:"flex",minHeight:"100vh"}}>
+      <div style={{ display: "flex", minHeight: "100vh" }}>
 
         {/* SIDEBAR */}
-        <aside className="sidebar" style={{width:sideOpen?216:56,flexShrink:0,background:"var(--surface)",borderRight:"1px solid var(--border)",flexDirection:"column",transition:"width 0.22s ease",overflow:"hidden",position:"sticky",top:0,height:"100vh"}}>
-          <div style={{padding:"17px 13px",display:"flex",alignItems:"center",gap:9,borderBottom:"1px solid var(--border)",minHeight:60}}>
-            <div style={{width:28,height:28,background:"var(--blue)",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed'",fontWeight:800,color:"#fff",fontSize:14,flexShrink:0}}>U</div>
-            {sideOpen&&<div><div style={{fontFamily:"'Barlow Condensed'",fontWeight:800,fontSize:15,letterSpacing:0.5,lineHeight:1}}>UTN TRACKER</div><div style={{fontSize:9,color:"var(--text3)",letterSpacing:1.5,marginTop:2}}>SISTEMAS · TUC</div></div>}
+        <aside className="sidebar" style={{ width: sideOpen ? 216 : 56, flexShrink: 0, background: "var(--surface)", borderRight: "1px solid var(--border)", flexDirection: "column", transition: "width 0.22s ease", overflow: "hidden", position: "sticky", top: 0, height: "100vh" }}>
+          <div style={{ padding: "17px 13px", display: "flex", alignItems: "center", gap: 9, borderBottom: "1px solid var(--border)", minHeight: 60 }}>
+            <div style={{ width: 28, height: 28, background: "var(--blue)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontWeight: 800, color: "#fff", fontSize: 14, flexShrink: 0 }}>U</div>
+            {sideOpen && <div><div style={{ fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 15, letterSpacing: 0.5, lineHeight: 1 }}>UTN TRACKER</div><div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: 1.5, marginTop: 2 }}>SISTEMAS · TUC</div></div>}
           </div>
-          <nav style={{padding:"9px 6px",flex:1}}>
-            {NAV.map(n=>{const ac=vista===n.id;return(
-              <button key={n.id} onClick={()=>setVista(n.id)} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"9px 10px",borderRadius:6,border:"none",marginBottom:1,background:ac?"var(--blue-dim)":"transparent",color:ac?"var(--blue)":"var(--text2)",fontSize:13,fontWeight:ac?600:400,transition:"all 0.12s",textAlign:"left"}}
-                onMouseEnter={e=>{if(!ac){e.currentTarget.style.background="var(--surface2)";e.currentTarget.style.color="var(--text)";}}}
-                onMouseLeave={e=>{if(!ac){e.currentTarget.style.background="transparent";e.currentTarget.style.color="var(--text2)";}}} >
-                <span style={{flexShrink:0,opacity:ac?1:0.7}}><Icon name={n.icon} size={16} color={ac?"var(--blue)":"currentColor"}/></span>
-                {sideOpen&&<span>{n.label}</span>}
-                {sideOpen&&ac&&<span style={{marginLeft:"auto",width:3,height:3,borderRadius:"50%",background:"var(--blue)"}}/>}
-              </button>
-            );})}
+          <nav style={{ padding: "9px 6px", flex: 1 }}>
+            {NAV.map(n => {
+              const ac = vista === n.id; return (
+                <button key={n.id} onClick={() => setVista(n.id)} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 10px", borderRadius: 6, border: "none", marginBottom: 1, background: ac ? "var(--blue-dim)" : "transparent", color: ac ? "var(--blue)" : "var(--text2)", fontSize: 13, fontWeight: ac ? 600 : 400, transition: "all 0.12s", textAlign: "left" }}
+                  onMouseEnter={e => { if (!ac) { e.currentTarget.style.background = "var(--surface2)"; e.currentTarget.style.color = "var(--text)"; } }}
+                  onMouseLeave={e => { if (!ac) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text2)"; } }} >
+                  <span style={{ flexShrink: 0, opacity: ac ? 1 : 0.7 }}><Icon name={n.icon} size={16} color={ac ? "var(--blue)" : "currentColor"} /></span>
+                  {sideOpen && <span>{n.label}</span>}
+                  {sideOpen && ac && <span style={{ marginLeft: "auto", width: 3, height: 3, borderRadius: "50%", background: "var(--blue)" }} />}
+                </button>
+              );
+            })}
           </nav>
-          {sideOpen&&session&&<div style={{padding:"10px 14px",borderTop:"1px solid var(--border)"}}>
-            <div style={{fontSize:11,color:"var(--text2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:6}}>{session.user.email}</div>
-            <button className="btn-ghost" style={{width:"100%",justifyContent:"center",fontSize:12,padding:"6px"}} onClick={()=>sb.auth.signOut()}><Icon name="logout" size={13}/>Cerrar sesión</button>
+          {sideOpen && session && <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, color: "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 6 }}>{session.user.email}</div>
+            <button className="btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12, padding: "6px" }} onClick={() => sb.auth.signOut()}><Icon name="logout" size={13} />Cerrar sesión</button>
           </div>}
-          <button onClick={()=>setSideOpen(o=>!o)} style={{margin:"9px 6px",padding:"9px",border:"1px solid var(--border)",borderRadius:6,background:"transparent",color:"var(--text2)",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.color="var(--blue)";}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)";}}>
-            <Icon name={sideOpen?"chevronL":"chevronR"} size={14}/>
+          <button onClick={() => setSideOpen(o => !o)} style={{ margin: "9px 6px", padding: "9px", border: "1px solid var(--border)", borderRadius: 6, background: "transparent", color: "var(--text2)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}>
+            <Icon name={sideOpen ? "chevronL" : "chevronR"} size={14} />
           </button>
         </aside>
 
         {/* MAIN */}
-        <main style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
-          <header className="header-pad" style={{borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:12,background:"var(--surface)",position:"sticky",top:0,zIndex:10}}>
-            <div style={{flex:1}}>
-              <h1 style={{fontFamily:"'Barlow Condensed'",fontSize:20,fontWeight:800,letterSpacing:0.3}}>{TITULOS[vista]}</h1>
-              <div style={{fontSize:10,color:"var(--text3)",fontFamily:"'DM Mono'",marginTop:1}}>{new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+        <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <header className="header-pad" style={{ borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, background: "var(--surface)", position: "sticky", top: 0, zIndex: 10 }}>
+            <div style={{ flex: 1 }}>
+              <h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 800, letterSpacing: 0.3 }}>{TITULOS[vista]}</h1>
+              <div style={{ fontSize: 10, color: "var(--text3)", fontFamily: "'DM Mono'", marginTop: 1 }}>{new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
             </div>
-            <span className="tag" style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
-              <Icon name="signal" size={11} color="var(--blue)"/>En línea
+            <span className="tag" style={{ background: "var(--blue-dim)", color: "var(--blue)", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>
+              <Icon name="signal" size={11} color="var(--blue)" />En línea
             </span>
             {/* Botón push notifications */}
-            {pushEstado!=="no-soportado"&&(
-              <button onClick={pushEstado==="activo"?desactivarPush:activarPush}
-                title={pushEstado==="activo"?"Desactivar notificaciones push":pushEstado==="denegado"?"Notificaciones bloqueadas en el navegador":"Activar notificaciones push"}
+            {pushEstado !== "no-soportado" && (
+              <button onClick={pushEstado === "activo" ? desactivarPush : activarPush}
+                title={pushEstado === "activo" ? "Desactivar notificaciones push" : pushEstado === "denegado" ? "Notificaciones bloqueadas en el navegador" : "Activar notificaciones push"}
                 style={{
-                  background:pushEstado==="activo"?"var(--blue-dim)":"var(--surface2)",
-                  border:`1px solid ${pushEstado==="activo"?"var(--blue)":pushEstado==="denegado"?"var(--border)":"var(--border)"}`,
-                  borderRadius:7,padding:"7px 9px",display:"flex",alignItems:"center",
-                  cursor:pushEstado==="denegado"?"not-allowed":"pointer",
-                  color:pushEstado==="activo"?"var(--blue)":pushEstado==="denegado"?"var(--text3)":"var(--text2)",
-                  transition:"all 0.15s",opacity:pushEstado==="solicitando"?0.6:1
+                  background: pushEstado === "activo" ? "var(--blue-dim)" : "var(--surface2)",
+                  border: `1px solid ${pushEstado === "activo" ? "var(--blue)" : pushEstado === "denegado" ? "var(--border)" : "var(--border)"}`,
+                  borderRadius: 7, padding: "7px 9px", display: "flex", alignItems: "center",
+                  cursor: pushEstado === "denegado" ? "not-allowed" : "pointer",
+                  color: pushEstado === "activo" ? "var(--blue)" : pushEstado === "denegado" ? "var(--text3)" : "var(--text2)",
+                  transition: "all 0.15s", opacity: pushEstado === "solicitando" ? 0.6 : 1
                 }}
-                onMouseEnter={e=>{if(pushEstado!=="denegado"&&pushEstado!=="activo"){e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.color="var(--blue)";}}}
-                onMouseLeave={e=>{if(pushEstado!=="denegado"&&pushEstado!=="activo"){e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)";}}}
-                disabled={pushEstado==="solicitando"||pushEstado==="denegado"}>
-                <Icon name="bell" size={16} color="currentColor"/>
+                onMouseEnter={e => { if (pushEstado !== "denegado" && pushEstado !== "activo") { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; } }}
+                onMouseLeave={e => { if (pushEstado !== "denegado" && pushEstado !== "activo") { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; } }}
+                disabled={pushEstado === "solicitando" || pushEstado === "denegado"}>
+                <Icon name="bell" size={16} color="currentColor" />
               </button>
             )}
             {/* Botón panel notificaciones */}
-            <button onClick={()=>setShowNotifs(true)} style={{
-              background:"var(--surface2)",border:"1px solid var(--border)",
-              borderRadius:7,padding:"7px 9px",display:"flex",alignItems:"center",cursor:"pointer",
-              transition:"border-color 0.15s",color:"var(--text2)"
+            <button onClick={() => setShowNotifs(true)} style={{
+              background: "var(--surface2)", border: "1px solid var(--border)",
+              borderRadius: 7, padding: "7px 9px", display: "flex", alignItems: "center", cursor: "pointer",
+              transition: "border-color 0.15s", color: "var(--text2)"
             }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.color="var(--blue)";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)";}}>
-              <Icon name="dashboard" size={16} color="currentColor"/>
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}>
+              <Icon name="dashboard" size={16} color="currentColor" />
             </button>
           </header>
-          <div className="main-pad" style={{flex:1}}>
-            {loadingData?<Spinner/>:<>
-              {vista==="dashboard" &&<Dashboard  materias={materias} eventos={eventos}/>}
-              {vista==="materias"  &&<VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria}/>}
-              {vista==="horarios"  &&<VistaHorarios materias={materias}/>}
-              {vista==="eventos"   &&<VistaEventos  materias={materias} eventos={eventos} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento}/>}
-              {vista==="archivos"  &&<VistaArchivos materias={materias} userId={session.user.id} showToast={showToast}/>}
-              {vista==="asistente" &&(iaActiva?<VistaAsistente materias={materias} eventos={eventos}/>:<BloqueadoIA/>)}
+          <div className="main-pad" style={{ flex: 1 }}>
+            {loadingData ? <Spinner /> : <>
+              {vista === "dashboard" && <Dashboard materias={materias} eventos={eventos} />}
+              {vista === "materias" && <VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria} />}
+              {vista === "horarios" && <VistaHorarios materias={materias} />}
+              {vista === "eventos" && <VistaEventos materias={materias} eventos={eventos} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento} />}
+              {vista === "archivos" && <VistaArchivos materias={materias} userId={session.user.id} showToast={showToast} />}
+              {vista === "asistente" && (iaActiva ? <VistaAsistente materias={materias} eventos={eventos} /> : <BloqueadoIA />)}
             </>}
           </div>
         </main>
       </div>
 
       {/* BOTTOM NAV mobile */}
-      <nav className="bottom-nav" style={{position:"fixed",bottom:0,left:0,right:0,height:"var(--nav-h)",background:"var(--surface)",borderTop:"1px solid var(--border)",alignItems:"center",justifyContent:"space-around",zIndex:50,paddingBottom:"env(safe-area-inset-bottom)"}}>
-        {NAV.map(n=>{const ac=vista===n.id;return(
-          <button key={n.id} onClick={()=>setVista(n.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:"none",border:"none",color:ac?"var(--blue)":"var(--text3)",padding:"6px 8px",borderRadius:8,transition:"color 0.15s",minWidth:44}}>
-            <Icon name={n.icon} size={20} color={ac?"var(--blue)":"currentColor"}/>
-            <span style={{fontSize:9,fontWeight:ac?700:400,letterSpacing:0.3}}>{n.label}</span>
-          </button>
-        );})}
+      <nav className="bottom-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: "var(--nav-h)", background: "var(--surface)", borderTop: "1px solid var(--border)", alignItems: "center", justifyContent: "space-around", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {NAV.map(n => {
+          const ac = vista === n.id; return (
+            <button key={n.id} onClick={() => setVista(n.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", color: ac ? "var(--blue)" : "var(--text3)", padding: "6px 8px", borderRadius: 8, transition: "color 0.15s", minWidth: 44 }}>
+              <Icon name={n.icon} size={20} color={ac ? "var(--blue)" : "currentColor"} />
+              <span style={{ fontSize: 9, fontWeight: ac ? 700 : 400, letterSpacing: 0.3 }}>{n.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {/* TOASTS */}
-      <ToastContainer toasts={toasts}/>
+      <ToastContainer toasts={toasts} />
       {/* PANEL NOTIFICACIONES INTERNAS */}
-      {showNotifs&&<PanelNotificaciones materias={materias} eventos={eventos} onClose={()=>setShowNotifs(false)}/>}
+      {showNotifs && <PanelNotificaciones materias={materias} eventos={eventos} onClose={() => setShowNotifs(false)} />}
       {/* MODAL CONFIGURACIÓN PUSH */}
-      {showPushConfig&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
-          onClick={e=>e.target===e.currentTarget&&setShowPushConfig(false)}>
-          <div className="card fade-in" style={{width:"100%",maxWidth:380,padding:24}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>Notificaciones push</span>
-              <button onClick={()=>setShowPushConfig(false)} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,cursor:"pointer"}}>×</button>
+      {showPushConfig && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={e => e.target === e.currentTarget && setShowPushConfig(false)}>
+          <div className="card fade-in" style={{ width: "100%", maxWidth: 380, padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 17, fontWeight: 700 }}>Notificaciones push</span>
+              <button onClick={() => setShowPushConfig(false)} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 20, cursor: "pointer" }}>×</button>
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              {push.estado==="no-soportado"&&(
-                <p style={{fontSize:13,color:"var(--text2)"}}>Tu navegador no soporta notificaciones push.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {push.estado === "no-soportado" && (
+                <p style={{ fontSize: 13, color: "var(--text2)" }}>Tu navegador no soporta notificaciones push.</p>
               )}
-              {push.estado==="denegado"&&(
+              {push.estado === "denegado" && (
                 <div>
-                  <p style={{fontSize:13,color:"var(--red)",marginBottom:8}}>Notificaciones bloqueadas en el navegador.</p>
-                  <p style={{fontSize:12,color:"var(--text2)"}}>Para activarlas, entrá a la configuración del navegador y permitilas para este sitio.</p>
+                  <p style={{ fontSize: 13, color: "var(--red)", marginBottom: 8 }}>Notificaciones bloqueadas en el navegador.</p>
+                  <p style={{ fontSize: 12, color: "var(--text2)" }}>Para activarlas, entrá a la configuración del navegador y permitilas para este sitio.</p>
                 </div>
               )}
-              {(push.estado==="idle"||push.estado==="solicitando")&&(
+              {(push.estado === "idle" || push.estado === "solicitando") && (
                 <div>
-                  <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.6}}>
+                  <p style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16, lineHeight: 1.6 }}>
                     Activá las notificaciones push para recibir recordatorios de clases, parciales y eventos aunque la app esté cerrada.
                   </p>
-                  <button className="btn-primary" style={{width:"100%",justifyContent:"center",opacity:push.estado==="solicitando"?0.6:1}}
-                    onClick={push.suscribir} disabled={push.estado==="solicitando"}>
-                    {push.estado==="solicitando"?"Solicitando permiso...":"Activar notificaciones"}
+                  <button className="btn-primary" style={{ width: "100%", justifyContent: "center", opacity: push.estado === "solicitando" ? 0.6 : 1 }}
+                    onClick={push.suscribir} disabled={push.estado === "solicitando"}>
+                    {push.estado === "solicitando" ? "Solicitando permiso..." : "Activar notificaciones"}
                   </button>
                 </div>
               )}
-              {push.estado==="activo"&&(
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(110,231,183,0.08)",border:"1px solid rgba(110,231,183,0.2)",borderRadius:8,padding:"10px 14px"}}>
-                    <span style={{color:"#6ee7b7",fontSize:16}}>✓</span>
-                    <span style={{fontSize:13,color:"#6ee7b7",fontWeight:500}}>Notificaciones activas</span>
+              {push.estado === "activo" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(110,231,183,0.08)", border: "1px solid rgba(110,231,183,0.2)", borderRadius: 8, padding: "10px 14px" }}>
+                    <span style={{ color: "#6ee7b7", fontSize: 16 }}>✓</span>
+                    <span style={{ fontSize: 13, color: "#6ee7b7", fontWeight: 500 }}>Notificaciones activas</span>
                   </div>
-                  <button className="btn-ghost" style={{width:"100%",justifyContent:"center",fontSize:12}}
+                  <button className="btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}
                     onClick={push.probar}>
                     Enviar notificación de prueba
                   </button>
-                  <button className="btn-danger" style={{width:"100%",justifyContent:"center",padding:"8px"}}
+                  <button className="btn-danger" style={{ width: "100%", justifyContent: "center", padding: "8px" }}
                     onClick={push.desuscribir}>
                     Desactivar notificaciones
                   </button>
@@ -1973,16 +1919,16 @@ export default function App(){
       <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer"
         title="Desarrollado por Franzk — frazk.lol"
         style={{
-          position:"fixed", bottom: isMobile?"76px":"24px", right:"20px",
-          width:42, height:42, borderRadius:"50%",
-          background:"var(--surface2)", border:"1px solid var(--border)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          textDecoration:"none", zIndex:40, transition:"all 0.2s",
-          boxShadow:"0 2px 12px rgba(0,0,0,0.4)"
+          position: "fixed", bottom: isMobile ? "76px" : "24px", right: "20px",
+          width: 42, height: 42, borderRadius: "50%",
+          background: "var(--surface2)", border: "1px solid var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          textDecoration: "none", zIndex: 40, transition: "all 0.2s",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.4)"
         }}
-        onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.transform="scale(1.08)";}}
-        onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="scale(1)";}}>
-        <span style={{fontFamily:"'Barlow Condensed'",fontWeight:800,fontSize:13,color:"var(--blue)",letterSpacing:0.5}}>FK</span>
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.transform = "scale(1.08)"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "scale(1)"; }}>
+        <span style={{ fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 13, color: "var(--blue)", letterSpacing: 0.5 }}>FK</span>
       </a>
     </>
   );
