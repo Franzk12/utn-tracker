@@ -72,6 +72,81 @@ function useIsMobile() {
   return m;
 }
 
+function usePushNotifications(userId) {
+  const [estado,setEstado]=useState("idle"); // idle | solicitando | activo | denegado | no-soportado
+  const [swReg,setSwReg]=useState(null);
+
+  useEffect(()=>{
+    if(!userId) return;
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)){
+      setEstado("no-soportado"); return;
+    }
+    // Registrar service worker
+    navigator.serviceWorker.register("/sw.js").then(reg=>{
+      setSwReg(reg);
+      // Ver si ya hay permiso
+      if(Notification.permission==="granted") setEstado("activo");
+      else if(Notification.permission==="denied") setEstado("denegado");
+    }).catch(()=>setEstado("no-soportado"));
+  },[userId]);
+
+  const suscribir=async()=>{
+    if(!swReg||!userId) return;
+    setEstado("solicitando");
+    try{
+      const permiso=await Notification.requestPermission();
+      if(permiso!=="granted"){ setEstado("denegado"); return; }
+
+      const sub=await swReg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY),
+      });
+
+      await fetch("/api/notify?action=subscribe",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({subscription:sub.toJSON(),userId}),
+      });
+      setEstado("activo");
+    }catch(e){
+      console.error("Error suscribiendo:", e);
+      setEstado("denegado");
+    }
+  };
+
+  const desuscribir=async()=>{
+    if(!swReg) return;
+    try{
+      const sub=await swReg.pushManager.getSubscription();
+      if(sub){
+        await fetch("/api/notify",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})});
+        await sub.unsubscribe();
+      }
+      setEstado("idle");
+    }catch(e){ console.error("Error desuscribiendo:", e); }
+  };
+
+  // Enviar notificación de prueba
+  const probar=async()=>{
+    if(!userId) return;
+    await fetch("/api/notify?action=send",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({userId,title:"UTN Tracker",body:"Las notificaciones funcionan correctamente",url:"/"}),
+    });
+  };
+
+  return {estado,suscribir,desuscribir,probar};
+}
+
+// Convierte VAPID public key de base64 a Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding="=".repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=window.atob(base64);
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+
 // ─── ESTILOS ─────────────────────────────────────────────────────────────────
 const G = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
@@ -144,6 +219,86 @@ function useToast() {
     setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),4000);
   },[]);
   return {toasts,show};
+}
+
+// ─── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
+function usePushNotifications(userId) {
+  const [estado,setEstado] = useState("idle"); // idle | solicitando | activo | denegado | no-soportado
+  const [sub,setSub]       = useState(null);
+
+  useEffect(()=>{
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)){
+      setEstado("no-soportado"); return;
+    }
+    if(Notification.permission === "granted") verificarSuscripcion();
+    else if(Notification.permission === "denied") setEstado("denegado");
+  },[userId]);
+
+  const verificarSuscripcion = async () => {
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if(existing){ setSub(existing); setEstado("activo"); }
+      else setEstado("idle");
+    }catch{ setEstado("idle"); }
+  };
+
+  const activar = async () => {
+    if(!userId) return;
+    setEstado("solicitando");
+    try{
+      // Registrar service worker
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+
+      // Pedir permiso
+      const permiso = await Notification.requestPermission();
+      if(permiso !== "granted"){ setEstado("denegado"); return; }
+
+      // Suscribirse al push
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+
+      // Guardar suscripción en el servidor
+      await fetch("/api/notify?action=subscribe", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ subscription, userId }),
+      });
+
+      setSub(subscription);
+      setEstado("activo");
+    }catch(e){
+      console.error("Error activando push:", e);
+      setEstado("idle");
+    }
+  };
+
+  const desactivar = async () => {
+    if(!sub) return;
+    try{
+      await fetch("/api/notify", {
+        method:"DELETE",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+      await sub.unsubscribe();
+      setSub(null); setEstado("idle");
+    }catch(e){ console.error("Error desactivando push:", e); }
+  };
+
+  return { estado, activar, desactivar };
+}
+
+// Convertir VAPID key de base64 a Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
 }
 
 // ─── NOTIFICACIONES INTERNAS ──────────────────────────────────────────────────
@@ -1547,7 +1702,11 @@ export default function App(){
   const [loadingData,setLoadingData]=useState(true);
   const {toasts,show:showToast}=useToast();
   const [showNotifs,setShowNotifs]=useState(false);
-  const [iaActiva,setIaActiva]=useState(false); // se carga desde el perfil del usuario
+  const [showPushConfig,setShowPushConfig]=useState(false);
+  const [iaActiva,setIaActiva]=useState(false);
+  const push=usePushNotifications(session?.user?.id);
+  const userId=session?.user?.id;
+  const {estado:pushEstado, activar:activarPush, desactivar:desactivarPush}=usePushNotifications(userId); // se carga desde el perfil del usuario
 
   // Sincronizar sideOpen con isMobile al cambiar tamaño
   useEffect(()=>{setSideOpen(!isMobile);},[isMobile]);
@@ -1577,6 +1736,39 @@ export default function App(){
     const {data:perfil}=await sb.from("perfiles").select("ia_activa").eq("id",session.user.id).single();
     if(perfil) setIaActiva(!!perfil.ia_activa);
     setLoadingData(false);
+    // Notificaciones automáticas si push está activo
+    if(Notification.permission==="granted"&&m&&e){
+      enviarNotifsAutomaticas(m,e,session.user.id);
+    }
+  };
+
+  const enviarNotifsAutomaticas=async(mats,evs,uid)=>{
+    const hoy=new Date();
+    const diasSem=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+    const dHoy=diasSem[hoy.getDay()];
+    // Materias de hoy
+    const matHoy=mats.filter(m=>m.dias?.includes(dHoy)&&["cursando","regular"].includes(m.estado));
+    if(matHoy.length>0){
+      await fetch("/api/notify?action=send",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({userId:uid,
+          title:`Tenés ${matHoy.length} clase${matHoy.length!==1?"s":""} hoy`,
+          body:matHoy.map(m=>`${m.horarios?.[dHoy]||m.horario||""} ${m.nombre}`).join(" · "),
+          url:"/"})}).catch(()=>{});
+    }
+    // Eventos próximas 24hs
+    const prox=evs.filter(ev=>{
+      const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
+      return d>=0&&d<=1;
+    });
+    for(const ev of prox){
+      const mat=mats.find(m=>m.id===ev.materia_id);
+      const d=Math.ceil((new Date(ev.fecha)-hoy)/86400000);
+      await fetch("/api/notify?action=send",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({userId:uid,
+          title:`${d===0?"Hoy":"Mañana"}: ${ev.titulo}`,
+          body:`${mat?.nombre||""}${ev.descripcion?" · "+ev.descripcion:""}`,
+          url:"/"})}).catch(()=>{});
+    }
   };
 
   // PWA
@@ -1671,14 +1863,33 @@ export default function App(){
             <span className="tag" style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
               <Icon name="signal" size={11} color="var(--blue)"/>En línea
             </span>
+            {/* Botón push notifications */}
+            {pushEstado!=="no-soportado"&&(
+              <button onClick={pushEstado==="activo"?desactivarPush:activarPush}
+                title={pushEstado==="activo"?"Desactivar notificaciones push":pushEstado==="denegado"?"Notificaciones bloqueadas en el navegador":"Activar notificaciones push"}
+                style={{
+                  background:pushEstado==="activo"?"var(--blue-dim)":"var(--surface2)",
+                  border:`1px solid ${pushEstado==="activo"?"var(--blue)":pushEstado==="denegado"?"var(--border)":"var(--border)"}`,
+                  borderRadius:7,padding:"7px 9px",display:"flex",alignItems:"center",
+                  cursor:pushEstado==="denegado"?"not-allowed":"pointer",
+                  color:pushEstado==="activo"?"var(--blue)":pushEstado==="denegado"?"var(--text3)":"var(--text2)",
+                  transition:"all 0.15s",opacity:pushEstado==="solicitando"?0.6:1
+                }}
+                onMouseEnter={e=>{if(pushEstado!=="denegado"&&pushEstado!=="activo"){e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.color="var(--blue)";}}}
+                onMouseLeave={e=>{if(pushEstado!=="denegado"&&pushEstado!=="activo"){e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)";}}}
+                disabled={pushEstado==="solicitando"||pushEstado==="denegado"}>
+                <Icon name="bell" size={16} color="currentColor"/>
+              </button>
+            )}
+            {/* Botón panel notificaciones */}
             <button onClick={()=>setShowNotifs(true)} style={{
-              position:"relative",background:"var(--surface2)",border:"1px solid var(--border)",
+              background:"var(--surface2)",border:"1px solid var(--border)",
               borderRadius:7,padding:"7px 9px",display:"flex",alignItems:"center",cursor:"pointer",
               transition:"border-color 0.15s",color:"var(--text2)"
             }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue)";e.currentTarget.style.color="var(--blue)";}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)";}}>
-              <Icon name="bell" size={16}/>
+              <Icon name="dashboard" size={16} color="currentColor"/>
             </button>
           </header>
           <div className="main-pad" style={{flex:1}}>
@@ -1706,8 +1917,58 @@ export default function App(){
 
       {/* TOASTS */}
       <ToastContainer toasts={toasts}/>
-      {/* PANEL NOTIFICACIONES */}
+      {/* PANEL NOTIFICACIONES INTERNAS */}
       {showNotifs&&<PanelNotificaciones materias={materias} eventos={eventos} onClose={()=>setShowNotifs(false)}/>}
+      {/* MODAL CONFIGURACIÓN PUSH */}
+      {showPushConfig&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+          onClick={e=>e.target===e.currentTarget&&setShowPushConfig(false)}>
+          <div className="card fade-in" style={{width:"100%",maxWidth:380,padding:24}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <span style={{fontFamily:"'Barlow Condensed'",fontSize:17,fontWeight:700}}>Notificaciones push</span>
+              <button onClick={()=>setShowPushConfig(false)} style={{background:"none",border:"none",color:"var(--text2)",fontSize:20,cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              {push.estado==="no-soportado"&&(
+                <p style={{fontSize:13,color:"var(--text2)"}}>Tu navegador no soporta notificaciones push.</p>
+              )}
+              {push.estado==="denegado"&&(
+                <div>
+                  <p style={{fontSize:13,color:"var(--red)",marginBottom:8}}>Notificaciones bloqueadas en el navegador.</p>
+                  <p style={{fontSize:12,color:"var(--text2)"}}>Para activarlas, entrá a la configuración del navegador y permitilas para este sitio.</p>
+                </div>
+              )}
+              {(push.estado==="idle"||push.estado==="solicitando")&&(
+                <div>
+                  <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.6}}>
+                    Activá las notificaciones push para recibir recordatorios de clases, parciales y eventos aunque la app esté cerrada.
+                  </p>
+                  <button className="btn-primary" style={{width:"100%",justifyContent:"center",opacity:push.estado==="solicitando"?0.6:1}}
+                    onClick={push.suscribir} disabled={push.estado==="solicitando"}>
+                    {push.estado==="solicitando"?"Solicitando permiso...":"Activar notificaciones"}
+                  </button>
+                </div>
+              )}
+              {push.estado==="activo"&&(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(110,231,183,0.08)",border:"1px solid rgba(110,231,183,0.2)",borderRadius:8,padding:"10px 14px"}}>
+                    <span style={{color:"#6ee7b7",fontSize:16}}>✓</span>
+                    <span style={{fontSize:13,color:"#6ee7b7",fontWeight:500}}>Notificaciones activas</span>
+                  </div>
+                  <button className="btn-ghost" style={{width:"100%",justifyContent:"center",fontSize:12}}
+                    onClick={push.probar}>
+                    Enviar notificación de prueba
+                  </button>
+                  <button className="btn-danger" style={{width:"100%",justifyContent:"center",padding:"8px"}}
+                    onClick={push.desuscribir}>
+                    Desactivar notificaciones
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* BOTÓN FLOTANTE FRAZK */}
       <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer"
         title="Desarrollado por Franzk — frazk.lol"
