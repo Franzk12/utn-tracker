@@ -35,6 +35,80 @@ const MODELOS_IA = [
   { id: "gemini", label: "Gemini Flash", color: "#4285f4" },
 ];
 
+// ─── PLAN DE ESTUDIO (UTN SISTEMAS - FRT - PLAN 2023) ────────────────────────
+const PLAN_ESTUDIO = [
+  {
+    año: 0,
+    materias: [
+      { id: "fis0", nombre: "Física", c: 0 },
+      { id: "mat0", nombre: "Matemática", c: 0 },
+      { id: "tou", nombre: "Taller de Orientación Universitaria", c: 0 },
+    ]
+  },
+  {
+    año: 1,
+    materias: [
+      { id: "aed", nombre: "Algoritmos y Estructuras de Datos", c: 0 },
+      { id: "am1", nombre: "Análisis Matemático I", c: 0 },
+      { id: "arc", nombre: "Arquitectura de Computadoras", c: 0 },
+      { id: "f1", nombre: "Física I", c: 0 },
+      { id: "iys", nombre: "Ingeniería y Sociedad", c: 0 },
+      { id: "led", nombre: "Lógica y Estructuras Discretas", c: 0 },
+      { id: "spn", nombre: "Sistemas y Procesos de Negocio", c: 0 },
+      { id: "aga", nombre: "Álgebra y Geometría Analítica", c: 0 },
+    ]
+  },
+  {
+    año: 2,
+    materias: [
+      { id: "asi", nombre: "Análisis de Sistemas de Información", c: 0 },
+      { id: "am2", nombre: "Análisis Matemático II", c: 0 },
+      { id: "f2", nombre: "Física II", c: 0 },
+      { id: "i1", nombre: "Inglés I", c: 0 },
+      { id: "pdp", nombre: "Paradigmas de Programación", c: 0 },
+      { id: "ssl", nombre: "Sintaxis y Semántica de los Lenguajes", c: 0 },
+      { id: "so", nombre: "Sistemas Operativos", c: 0 },
+    ]
+  },
+  {
+    año: 3,
+    materias: [
+      { id: "an", nombre: "Análisis Numérico", c: 0 },
+      { id: "bd", nombre: "Bases de Datos", c: 0 },
+      { id: "cd", nombre: "Comunicación de Datos", c: 0 },
+      { id: "ds", nombre: "Desarrollo de Software", c: 0 },
+      { id: "dsi", nombre: "Diseño de Sistemas de Información", c: 0 },
+      { id: "eco", nombre: "Economía", c: 0 },
+      { id: "i2", nombre: "Inglés II", c: 0 },
+      { id: "pye", nombre: "Probabilidad y Estadística", c: 0 },
+    ]
+  },
+  {
+    año: 4,
+    materias: [
+      { id: "asi2", nombre: "Administración de Sistemas de Información", c: 0 },
+      { id: "ics", nombre: "Ingeniería y Calidad de Software", c: 0 },
+      { id: "io", nombre: "Investigación Operativa", c: 0 },
+      { id: "leg", nombre: "Legislación", c: 0 },
+      { id: "rd", nombre: "Redes de Datos", c: 0 },
+      { id: "sim", nombre: "Simulación", c: 0 },
+      { id: "tpa", nombre: "Tecnologías para la Automatización", c: 0 },
+    ]
+  },
+  {
+    año: 5,
+    materias: [
+      { id: "cd2", nombre: "Ciencia de Datos", c: 0 },
+      { id: "gg", nombre: "Gestión Gerencial", c: 0 },
+      { id: "iai", nombre: "Inteligencia Artificial", c: 0 },
+      { id: "pfe", nombre: "Proyecto Final", c: 0 },
+      { id: "pps", nombre: "Práctica Profesional Supervisada", c: 0 },
+      { id: "ssi", nombre: "Seguridad en los Sistemas de Información", c: 0 },
+      { id: "sis", nombre: "Sistemas de Gestión", c: 0 },
+    ]
+  }
+];
+
 // ─── ICON ─────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size = 16, color = "currentColor" }) => {
   const p = {
@@ -486,6 +560,7 @@ function AuthPage({ onAuth }) {
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function Dashboard({ materias, eventos }) {
+  const [subVista, setSubVista] = useState("resumen"); // 'resumen' | 'analisis'
   const hoy = new Date();
   const stats = useMemo(() => {
     const total = materias.length;
@@ -494,7 +569,7 @@ function Dashboard({ materias, eventos }) {
     const regulares = materias.filter(m => m.estado === "regular").length;
     const libres = materias.filter(m => m.estado === "libre").length;
     const notas = materias.filter(m => m.nota).map(m => m.nota);
-    const promedio = notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : "—";
+    const promedio = notas.length ? (notas.reduce((a, b) => a + Number(b), 0) / notas.length).toFixed(1) : "—";
     const progreso = total ? Math.round((aprobadas / total) * 100) : 0;
     return { total, aprobadas, cursando, regulares, libres, promedio, progreso };
   }, [materias]);
@@ -512,82 +587,255 @@ function Dashboard({ materias, eventos }) {
   const matHoy = materias.filter(m => m.dias?.includes(dHoy) && ["cursando", "regular"].includes(m.estado));
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <p style={{ color: "var(--text2)", fontSize: 13 }}>Resumen de tu situación académica.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 9 }}>
-        <SC label="Progreso" value={`${stats.progreso}%`} sub={`${stats.aprobadas} de ${stats.total}`} accent="var(--blue)" />
-        <SC label="Cursando" value={stats.cursando} sub="activas" accent="var(--blue)" />
-        <SC label="Regulares" value={stats.regulares} sub="para final" accent="var(--slate)" />
-        <SC label="Libres" value={stats.libres} sub="a recursar" accent="var(--red)" />
-        <SC label="Promedio" value={stats.promedio} sub="notas" />
+      {/* Selector de sub-vista */}
+      <div style={{ display: "flex", gap: 1, background: "var(--surface2)", borderRadius: 7, padding: 3, width: "fit-content" }}>
+        {[{ id: "resumen", label: "Resumen" }, { id: "analisis", label: "Análisis de Promedio" }].map(v => (
+          <button key={v.id} onClick={() => setSubVista(v.id)} style={{
+            padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 600,
+            background: subVista === v.id ? "var(--blue)" : "transparent",
+            color: subVista === v.id ? "#fff" : "var(--text2)", transition: "all 0.15s"
+          }}>{v.label}</button>
+        ))}
       </div>
-      <div className="card" style={{ padding: "16px 18px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Avance de carrera</span>
-          <span style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)" }}>{stats.aprobadas}/{stats.total}</span>
-        </div>
-        <div style={{ background: "var(--surface3)", borderRadius: 3, height: 5 }}>
-          <div style={{ height: "100%", width: `${stats.progreso}%`, background: "var(--blue)", borderRadius: 3, transition: "width 0.6s" }} />
-        </div>
-        <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
-          {Object.entries(ESTADOS).map(([k, v]) => { const c = materias.filter(m => m.estado === k).length; return c ? <span key={k} className="tag" style={{ background: v.bg, color: v.color }}>{v.label} {c}</span> : null; })}
-        </div>
-      </div>
-      {prox.length > 0 && (
-        <div>
-          <p className="section-title">Próximos eventos</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {prox.map(ev => {
-              const mat = materias.find(m => m.id === ev.materia_id);
-              const tipo = TIPO_EVENTO[ev.tipo];
-              return (
-                <div key={ev.id} className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11 }}>
-                  <div style={{ width: 3, height: 34, borderRadius: 2, background: tipo.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{ev.titulo}</span>
-                      <span className="tag" style={{ background: `${tipo.color}18`, color: tipo.color }}>{tipo.label}</span>
-                    </div>
-                    <span style={{ fontSize: 11, color: "var(--text2)" }}>{mat?.nombre}{ev.descripcion && ` · ${ev.descripcion}`}</span>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)", fontWeight: 500 }}>{dR(ev.fecha)}</div>
-                    <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{new Date(ev.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}</div>
-                  </div>
-                </div>
-              );
-            })}
+
+      {subVista === "resumen" ? (
+        <>
+          <p style={{ color: "var(--text2)", fontSize: 13 }}>Resumen de tu situación académica.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 9 }}>
+            <SC label="Progreso" value={`${stats.progreso}%`} sub={`${stats.aprobadas} de ${stats.total}`} accent="var(--blue)" />
+            <SC label="Cursando" value={stats.cursando} sub="activas" accent="var(--blue)" />
+            <SC label="Regulares" value={stats.regulares} sub="para final" accent="var(--slate)" />
+            <SC label="Libres" value={stats.libres} sub="a recursar" accent="var(--red)" />
+            <SC label="Promedio" value={stats.promedio} sub="notas" />
           </div>
-        </div>
+          <div className="card" style={{ padding: "16px 18px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Avance de carrera</span>
+              <span style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)" }}>{stats.aprobadas}/{stats.total}</span>
+            </div>
+            <div style={{ background: "var(--surface3)", borderRadius: 3, height: 5 }}>
+              <div style={{ height: "100%", width: `${stats.progreso}%`, background: "var(--blue)", borderRadius: 3, transition: "width 0.6s" }} />
+            </div>
+            <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
+              {Object.entries(ESTADOS).map(([k, v]) => { const c = materias.filter(m => m.estado === k).length; return c ? <span key={k} className="tag" style={{ background: v.bg, color: v.color }}>{v.label} {c}</span> : null; })}
+            </div>
+          </div>
+          {prox.length > 0 && (
+            <div>
+              <p className="section-title">Próximos eventos</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {prox.map(ev => {
+                  const mat = materias.find(m => m.id === ev.materia_id);
+                  const tipo = TIPO_EVENTO[ev.tipo];
+                  return (
+                    <div key={ev.id} className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11 }}>
+                      <div style={{ width: 3, height: 34, borderRadius: 2, background: tipo.color, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{ev.titulo}</span>
+                          <span className="tag" style={{ background: `${tipo.color}18`, color: tipo.color }}>{tipo.label}</span>
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--text2)" }}>{mat?.nombre}{ev.descripcion && ` · ${ev.descripcion}`}</span>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)", fontWeight: 500 }}>{dR(ev.fecha)}</div>
+                        <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{new Date(ev.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div>
+            <p className="section-title">Hoy — {dHoy}</p>
+            {matHoy.length === 0 ? <div className="card" style={{ padding: 14, color: "var(--text2)", fontSize: 13 }}>No hay clases cargadas para hoy</div> : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {matHoy.sort((a, b) => {
+                  const ha = a.horarios?.[dHoy] || a.horario || "";
+                  const hb = b.horarios?.[dHoy] || b.horario || "";
+                  return ha.localeCompare(hb);
+                }).map(m => {
+                  const est = ESTADOS[m.estado]; const horHoy = m.horarios?.[dHoy] || m.horario || ""; return (
+                    <div key={m.id} className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 11 }}>
+                      <span style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)", minWidth: 44 }}>{horHoy}</span>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{m.nombre}</span>
+                      <span style={{ fontSize: 11, color: "var(--text2)" }}>Aula {m.aula}</span>
+                      <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <VistaAnalisis materias={materias} />
       )}
-      <div>
-        <p className="section-title">Hoy — {dHoy}</p>
-        {matHoy.length === 0 ? <div className="card" style={{ padding: 14, color: "var(--text2)", fontSize: 13 }}>No hay clases cargadas para hoy</div> : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {matHoy.sort((a, b) => {
-              const ha = a.horarios?.[dHoy] || a.horario || "";
-              const hb = b.horarios?.[dHoy] || b.horario || "";
-              return ha.localeCompare(hb);
-            }).map(m => {
-              const est = ESTADOS[m.estado]; const horHoy = m.horarios?.[dHoy] || m.horario || ""; return (
-                <div key={m.id} className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={{ fontFamily: "'DM Mono'", fontSize: 12, color: "var(--blue)", minWidth: 44 }}>{horHoy}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{m.nombre}</span>
-                  <span style={{ fontSize: 11, color: "var(--text2)" }}>Aula {m.aula}</span>
-                  <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
+    </div>
+  );
+}
+
+// ─── MATERIAS ─────────────────────────────────────────────────────────────────
+// ─── ANÁLISIS DE PROMEDIO ────────────────────────────────────────────────────
+function VistaAnalisis({ materias }) {
+  const aprobadas = useMemo(() => materias.filter(m => m.nota && m.nota >= 4).sort((a, b) => a.año - b.año || a.cuatrimestre - b.cuatrimestre), [materias]);
+  const todasConNota = useMemo(() => materias.filter(m => m.nota).sort((a, b) => a.año - b.año || a.cuatrimestre - b.cuatrimestre), [materias]);
+
+  const calcularPromedio = (lista) => {
+    if (!lista.length) return 0;
+    return (lista.reduce((a, b) => a + Number(b.nota), 0) / lista.length).toFixed(2);
+  };
+
+  const promAprobadas = calcularPromedio(aprobadas);
+  const promGeneral = calcularPromedio(todasConNota);
+
+  // Datos para el gráfico de evolución
+  const puntos = useMemo(() => {
+    let suma = 0;
+    return todasConNota.map((m, i) => {
+      suma += Number(m.nota);
+      return { x: i, y: (suma / (i + 1)).toFixed(2), nombre: m.nombre };
+    });
+  }, [todasConNota]);
+
+  // Simulador
+  const [simMaterias, setSimMaterias] = useState(1);
+  const [simNota, setSimNota] = useState(8);
+  const promSimulado = useMemo(() => {
+    const sumaActual = todasConNota.reduce((a, b) => a + Number(b.nota), 0);
+    const totalActual = todasConNota.length;
+    const sumaSim = sumaActual + (simMaterias * simNota);
+    const totalSim = totalActual + Number(simMaterias);
+    return (sumaSim / totalSim).toFixed(2);
+  }, [todasConNota, simMaterias, simNota]);
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="card" style={{ padding: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text3)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Promedio General</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: "var(--blue)", fontFamily: "'Barlow Condensed'" }}>{promGeneral}</div>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>Incluye todas las notas ({todasConNota.length})</div>
+        </div>
+        <div className="card" style={{ padding: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text3)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Solo Aprobadas</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: "var(--green)", fontFamily: "'Barlow Condensed'" }}>{promAprobadas}</div>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>Sin contar aplazos ({aprobadas.length})</div>
+        </div>
+      </div>
+
+      {/* Gráfico de Evolución */}
+      <div className="card" style={{ padding: 18 }}>
+        <p className="section-title">Evolución del Promedio</p>
+        {puntos.length < 2 ? (
+          <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text3)", fontSize: 13 }}>Necesitás al menos 2 notas para ver la evolución</div>
+        ) : (
+          <div style={{ height: 160, width: "100%", marginTop: 10, position: "relative", display: "flex", alignItems: "flex-end", gap: 2 }}>
+            {puntos.map((p, i) => {
+              const h = (p.y / 10) * 100;
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", gap: 5, position: "relative" }} title={`${p.nombre}: ${p.y}`}>
+                  <div style={{ width: "100%", height: `${h}%`, background: "var(--blue-mid)", borderTop: "2px solid var(--blue)", borderRadius: "2px 2px 0 0", transition: "height 0.5s" }} />
+                  <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "'DM Mono'" }}>{p.y}</span>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Simulador */}
+      <div className="card" style={{ padding: 18, background: "var(--surface2)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Icon name="refresh" size={16} color="var(--blue)" />
+          <p className="section-title" style={{ marginBottom: 0 }}>Simulador de Promedio</p>
+        </div>
+        <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 16 }}>Calculá cómo cambiaría tu promedio con tus próximos exámenes.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+          <div>
+            <Lbl>¿Cuántas rendís?</Lbl>
+            <input type="number" style={{ width: "100%" }} value={simMaterias} onChange={e => setSimMaterias(e.target.value)} min={1} />
+          </div>
+          <div>
+            <Lbl>Nota estimada</Lbl>
+            <input type="number" style={{ width: "100%" }} value={simNota} onChange={e => setSimNota(e.target.value)} min={1} max={10} />
+          </div>
+        </div>
+        <div style={{ background: "var(--surface)", padding: 14, borderRadius: 8, border: "1px solid var(--border)", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "var(--text3)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Tu nuevo promedio sería</div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: Number(promSimulado) >= Number(promGeneral) ? "var(--green)" : "var(--red)", fontFamily: "'Barlow Condensed'" }}>{promSimulado}</div>
+          <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 4 }}>
+            {Number(promSimulado) >= Number(promGeneral) ? "↑ Subiría " : "↓ Bajaría "}
+            {Math.abs(promSimulado - promGeneral).toFixed(2)} puntos
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── MATERIAS ─────────────────────────────────────────────────────────────────
+// ─── VISTA ENFOQUE (POMODORO) ────────────────────────────────────────────────
+function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo }) {
+  const { mins, secs, activo, modo, matId, progreso } = sessionEnfoque;
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 30, padding: "20px 0" }}>
+      <div style={{ textAlign: "center" }}>
+        <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: modo === "estudio" ? "var(--blue)" : "var(--green)" }}>
+          {modo === "estudio" ? "MODO ENFOQUE" : "TIEMPO DE DESCANSO"}
+        </h2>
+        <p style={{ fontSize: 13, color: "var(--text3)", marginTop: 5 }}>Mantené la concentración en un solo tema.</p>
+      </div>
+
+      {/* Selector de Materia */}
+      {!activo && (
+        <div style={{ width: "100%", maxWidth: 300 }}>
+          <Lbl>¿Qué vas a estudiar?</Lbl>
+          <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onStart(null, e.target.value)}>
+            <option value="">Seleccionar materia...</option>
+            {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Timer Circular */}
+      <div style={{ position: "relative", width: 240, height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg style={{ position: "absolute", transform: "rotate(-90deg)", width: "100%", height: "100%" }}>
+          <circle cx="120" cy="120" r="110" stroke="var(--surface2)" strokeWidth="8" fill="none" />
+          <circle cx="120" cy="120" r="110" stroke={modo === "estudio" ? "var(--blue)" : "var(--green)"} strokeWidth="8" fill="none" strokeDasharray="691" strokeDashoffset={691 - (691 * (progreso / 100))} style={{ transition: "stroke-dashoffset 0.5s linear" }} strokeLinecap="round" />
+        </svg>
+        <div style={{ textAlign: "center", zIndex: 2 }}>
+          <div style={{ fontFamily: "'DM Mono'", fontSize: 54, fontWeight: 700, color: "var(--text)" }}>
+            {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+          </div>
+          {matId && <div style={{ fontSize: 11, color: "var(--blue)", fontWeight: 700, textTransform: "uppercase", marginTop: -5 }}>{materias.find(m => m.id === matId)?.nombre}</div>}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12 }}>
+        <button className="btn-primary" style={{ padding: "12px 40px", fontSize: 16 }} onClick={() => activo ? onPause() : onStart()}>
+          {activo ? "Pausar" : "Empezar"}
+        </button>
+        <button className="btn-ghost" style={{ padding: "12px 20px" }} onClick={onReset}>Reiniciar</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="tag" onClick={() => onSetModo("estudio")} style={{ background: modo === "estudio" ? "var(--blue-dim)" : "var(--surface2)", color: modo === "estudio" ? "var(--blue)" : "var(--text3)", cursor: "pointer", border: "none" }}>Pomodoro (25m)</button>
+        <button className="tag" onClick={() => onSetModo("descanso")} style={{ background: modo === "descanso" ? "var(--green-dim)" : "var(--surface2)", color: modo === "descanso" ? "var(--green)" : "var(--text3)", cursor: "pointer", border: "none" }}>Descanso (5m)</button>
+      </div>
+    </div>
+  );
+}
+
 function FormMateria({ initial, onSave, onClose }) {
   const [f, setF] = useState(() => {
     const base = initial || { nombre: "", año: 1, cuatrimestre: 1, estado: "pendiente", nota: "", hs: 4, dias: [], horarios: {}, aula: "" };
+    // Borrador para nuevas materias
+    if (!initial) {
+      const draft = localStorage.getItem("utn_draft_materia");
+      if (draft) return JSON.parse(draft);
+    }
     // compatibilidad con datos viejos que tienen campo horario plano
     if (initial && initial.horario && !initial.horarios) {
       const h = {};
@@ -596,6 +844,10 @@ function FormMateria({ initial, onSave, onClose }) {
     }
     return { ...base, horarios: base.horarios || {} };
   });
+
+  useEffect(() => {
+    if (!initial) localStorage.setItem("utn_draft_materia", JSON.stringify(f));
+  }, [f, initial]);
   const [errs, setErrs] = useState({});
   const s = (k, v) => setF(p => ({ ...p, [k]: v }));
 
@@ -681,67 +933,86 @@ function FormMateria({ initial, onSave, onClose }) {
         <input style={{ width: "100%" }} value={f.aula} onChange={e => s("aula", e.target.value)} placeholder="Ej: Lab1" />
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button className="btn-primary" style={{ flex: 1 }} onClick={() => { if (validar()) onSave(f); }}>{initial ? "Guardar cambios" : "Agregar materia"}</button>
-        <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" style={{ flex: 1 }} onClick={() => { if (validar()) { localStorage.removeItem("utn_draft_materia"); onSave(f); } }}>{initial ? "Guardar cambios" : "Agregar materia"}</button>
+        <button className="btn-ghost" onClick={() => { localStorage.removeItem("utn_draft_materia"); onClose(); }}>Cancelar</button>
       </div>
     </div>
   );
 }
 
 function VistasMaterias({ materias, onAdd, onEdit, onDelete }) {
+  const [subVista, setSubVista] = useState("lista"); // 'lista' | 'mapa'
   const [filtro, setFiltro] = useState("all");
   const [busq, setBusq] = useState("");
   const [edit, setEdit] = useState(null);
-  const [add, setAdd] = useState(false);
+  const [add, setAdd] = useState(() => !!localStorage.getItem("utn_draft_materia"));
   const [confirm, setConfirm] = useState(null); // {id, nombre}
   const fil = useMemo(() => materias.filter(m => (filtro === "all" || m.estado === filtro) && m.nombre.toLowerCase().includes(busq.toLowerCase())).sort((a, b) => a.año - b.año || a.cuatrimestre - b.cuatrimestre), [materias, filtro, busq]);
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <input style={{ flex: 1, minWidth: 160 }} value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar materia..." />
-        <select value={filtro} onChange={e => setFiltro(e.target.value)} style={{ minWidth: 140 }}>
-          <option value="all">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <button className="btn-primary" onClick={() => setAdd(true)}><Icon name="plus" size={14} color="#fff" />Agregar</button>
+      {/* Selector de sub-vista */}
+      <div style={{ display: "flex", gap: 1, background: "var(--surface2)", borderRadius: 7, padding: 3, width: "fit-content", marginBottom: 4 }}>
+        {[{ id: "lista", label: "Lista" }, { id: "mapa", label: "Mapa (Malla)" }].map(v => (
+          <button key={v.id} onClick={() => setSubVista(v.id)} style={{
+            padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 600,
+            background: subVista === v.id ? "var(--blue)" : "transparent",
+            color: subVista === v.id ? "#fff" : "var(--text2)", transition: "all 0.15s"
+          }}>{v.label}</button>
+        ))}
       </div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-        {["all", ...Object.keys(ESTADOS)].map(k => {
-          const c = k === "all" ? materias.length : materias.filter(m => m.estado === k).length;
-          const est = k === "all" ? null : ESTADOS[k]; const ac = filtro === k;
-          return <button key={k} onClick={() => setFiltro(k)} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 500, border: `1px solid ${ac ? (est?.color || "var(--blue)") : "var(--border)"}`, background: ac ? (est?.bg || "var(--blue-dim)") : "transparent", color: ac ? (est?.color || "var(--blue)") : "var(--text2)", transition: "all 0.15s" }}>{k === "all" ? "Todas" : est.label} ({c})</button>;
-        })}
-      </div>
-      {fil.length === 0 ? <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Sin resultados</div> : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {fil.map(m => {
-            const est = ESTADOS[m.estado]; return (
-              <div key={m.id} className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11, transition: "border-color 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--border2)"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{m.nombre}</span>
-                    <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
-                    {m.nota && <span className="mono tag" style={{ background: "var(--blue-dim)", color: "var(--blue)", fontSize: 10 }}>{m.nota}/10</span>}
+
+      {subVista === "lista" ? (
+        <>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <input style={{ flex: 1, minWidth: 160 }} value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar materia..." />
+            <select value={filtro} onChange={e => setFiltro(e.target.value)} style={{ minWidth: 140 }}>
+              <option value="all">Todos los estados</option>
+              {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <button className="btn-primary" onClick={() => setAdd(true)}><Icon name="plus" size={14} color="#fff" />Agregar</button>
+          </div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            {["all", ...Object.keys(ESTADOS)].map(k => {
+              const c = k === "all" ? materias.length : materias.filter(m => m.estado === k).length;
+              const est = k === "all" ? null : ESTADOS[k]; const ac = filtro === k;
+              return <button key={k} onClick={() => setFiltro(k)} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 500, border: `1px solid ${ac ? (est?.color || "var(--blue)") : "var(--border)"}`, background: ac ? (est?.bg || "var(--blue-dim)") : "transparent", color: ac ? (est?.color || "var(--blue)") : "var(--text2)", transition: "all 0.15s" }}>{k === "all" ? "Todas" : est.label} ({c})</button>;
+            })}
+          </div>
+          {fil.length === 0 ? <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Sin resultados</div> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {fil.map(m => {
+                const est = ESTADOS[m.estado]; return (
+                  <div key={m.id} className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11, transition: "border-color 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = "var(--border2)"}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                    <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{m.nombre}</span>
+                        <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
+                        {m.nota && <span className="mono tag" style={{ background: "var(--blue-dim)", color: "var(--blue)", fontSize: 10 }}>{m.nota}/10</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <span>Año {m.año} · {m.cuatrimestre}° cuat.</span>
+                        {m.dias?.length > 0 && <span>{m.dias.map(d => `${d} ${m.horarios?.[d] || m.horario || ""}`).join(", ")}</span>}
+                        {m.aula && <span>Aula: {m.aula}</span>}
+                        <span>{m.hs} hs/sem</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button className="btn-ghost" style={{ padding: "5px 9px", fontSize: 12 }} onClick={() => setEdit(m)}><Icon name="edit" size={13} />Editar</button>
+                      <button className="btn-danger" onClick={() => setConfirm({ id: m.id, nombre: m.nombre })}><Icon name="trash" size={13} /></button>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <span>Año {m.año} · {m.cuatrimestre}° cuat.</span>
-                    {m.dias?.length > 0 && <span>{m.dias.map(d => `${d} ${m.horarios?.[d] || m.horario || ""}`).join(", ")}</span>}
-                    {m.aula && <span>Aula: {m.aula}</span>}
-                    <span>{m.hs} hs/sem</span>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button className="btn-ghost" style={{ padding: "5px 9px", fontSize: 12 }} onClick={() => setEdit(m)}><Icon name="edit" size={13} />Editar</button>
-                  <button className="btn-danger" onClick={() => setConfirm({ id: m.id, nombre: m.nombre })}><Icon name="trash" size={13} /></button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        <VistaMapa materias={materias} onAdd={onAdd} />
       )}
+
       {add && <Modal title="Nueva Materia" onClose={() => setAdd(false)}><FormMateria onSave={f => { onAdd(f); setAdd(false); }} onClose={() => setAdd(false)} /></Modal>}
       {edit && <Modal title="Editar Materia" onClose={() => setEdit(null)}><FormMateria initial={edit} onSave={f => { onEdit(edit.id, f); setEdit(null); }} onClose={() => setEdit(null)} /></Modal>}
       {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { onDelete(confirm.id); setConfirm(null); }} />}
@@ -878,6 +1149,100 @@ function VistaHorarios({ materias }) {
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
           {Object.entries(ESTADOS).filter(([k]) => ["cursando", "regular"].includes(k)).map(([k, v]) => (
             <span key={k} className="tag" style={{ background: v.bg, color: v.color }}>{v.label}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── VISTA MAPA (MALLA CURRICULAR) ────────────────────────────────────────────
+function VistaMapa({ materias, onAdd }) {
+  const [loading, setLoading] = useState(false);
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  const importarFaltantes = async () => {
+    if (!confirm("¿Querés cargar todas las materias del plan que te faltan como 'Pendientes'?")) return;
+    setLoading(true);
+    let cont = 0;
+    for (const año of PLAN_ESTUDIO) {
+      for (const mPlan of año.materias) {
+        const existe = materias.some(x => norm(x.nombre) === norm(mPlan.nombre));
+        if (!existe) {
+          await onAdd({
+            nombre: mPlan.nombre,
+            año: año.año,
+            cuatrimestre: mPlan.c === 0 ? 1 : mPlan.c,
+            estado: "pendiente",
+            nota: null,
+            hs: 4,
+            dias: [],
+            horarios: {},
+            aula: ""
+          });
+          cont++;
+        }
+      }
+    }
+    alert(`Se cargaron ${cont} materias nuevas.`);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <p style={{ fontSize: 13, color: "var(--text2)" }}>Visualización de tu progreso según el plan de estudios oficial.</p>
+        <button className="btn-ghost" onClick={importarFaltantes} disabled={loading} style={{ fontSize: 12, borderColor: "var(--blue)", color: "var(--blue)" }}>
+          {loading ? "Cargando..." : "Cargar materias faltantes del plan"}
+        </button>
+      </div>
+
+      {PLAN_ESTUDIO.map(año => (
+        <div key={año.año}>
+          <p className="section-title">Año {año.año}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+            {año.materias.map(mPlan => {
+              const mUser = materias.find(x => norm(x.nombre) === norm(mPlan.nombre));
+              const est = mUser ? ESTADOS[mUser.estado] : null;
+              return (
+                <div key={mPlan.id} className="card" style={{
+                  padding: "12px 14px",
+                  border: mUser ? `1px solid ${est.color}44` : "1px solid var(--border)",
+                  background: mUser ? est.bg : "var(--surface)",
+                  position: "relative", overflow: "hidden",
+                  display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 84
+                }}>
+                  {mUser && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: est.color }} />}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: mUser ? est.color : "var(--text3)", marginBottom: 4 }}>
+                      {mPlan.c === 0 ? "ANUAL" : `${mPlan.c}° CUAT`}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: mUser ? "var(--text)" : "var(--text2)" }}>{mPlan.nombre}</div>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    {mUser ? (
+                      <span className="tag" style={{ background: est.bg, color: est.color, padding: "1px 6px", border: `1px solid ${est.color}33` }}>
+                        {est.label} {mUser.nota ? `(${mUser.nota})` : ""}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 10, color: "var(--text3)", fontStyle: "italic" }}>Pendiente</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      <div className="card" style={{ padding: 16, background: "var(--surface2)" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Leyenda de estados</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {Object.entries(ESTADOS).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: v.color }} />
+              <span style={{ fontSize: 11, color: "var(--text2)" }}>{v.label}</span>
+            </div>
           ))}
         </div>
       </div>
@@ -1049,7 +1414,7 @@ function FormEvento({ materias, initial, onSave, onClose }) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-      <div><Lbl>Materia</Lbl><select style={{ width: "100%" }} value={f.materia_id} onChange={e => s("materia_id", e.target.value)}>{materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
+      <div><Lbl>Materia</Lbl><select style={{ width: "100%" }} value={f.materia_id} onChange={e => s("materia_id", e.target.value)}>{materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
         <div><Lbl>Tipo</Lbl><select style={{ width: "100%" }} value={f.tipo} onChange={e => s("tipo", e.target.value)}>{Object.entries(TIPO_EVENTO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
         <div>
@@ -1068,28 +1433,97 @@ function FormEvento({ materias, initial, onSave, onClose }) {
         <div><Lbl>Descripción</Lbl><input style={{ width: "100%" }} value={f.descripcion} onChange={e => s("descripcion", e.target.value)} placeholder="Temas, etc." /></div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button className="btn-primary" style={{ flex: 1 }} onClick={() => { if (validar()) onSave(f); }}>{initial ? "Guardar" : "Agregar evento"}</button>
-        <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" style={{ flex: 1 }} onClick={() => { if (validar()) { localStorage.removeItem("utn_draft_evento"); onSave(f); } }}>{initial ? "Guardar" : "Agregar evento"}</button>
+        <button className="btn-ghost" onClick={() => { localStorage.removeItem("utn_draft_evento"); onClose(); }}>Cancelar</button>
       </div>
     </div>
   );
 }
 
-function VistaEventos({ materias, eventos, onAdd, onEdit, onDelete }) {
+// ─── VISTA TAREAS (CHECKLIST) ────────────────────────────────────────────────
+function VistaTareas({ materias, tareas, onAdd, onToggle, onDelete }) {
+  const [nueva, setNueva] = useState("");
+  const [matId, setMatId] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!nueva.trim()) return;
+    onAdd({ titulo: nueva, materia_id: matId || null, completada: false });
+    setNueva("");
+  };
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <form className="card" onSubmit={handleSubmit} style={{ padding: 14, background: "var(--surface2)", border: "1px dashed var(--border)" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", marginBottom: 8 }}>Agregar tarea rápida</p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input style={{ flex: 1 }} value={nueva} onChange={e => setNueva(e.target.value)} placeholder="Ej: Estudiar unidad 3..." />
+          <select style={{ width: 140 }} value={matId} onChange={setMatId && (e => setMatId(e.target.value))}>
+            <option value="">General</option>
+            {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          </select>
+          <button className="btn-primary" type="submit" style={{ padding: "0 14px" }}><Icon name="plus" size={14} color="#fff" /></button>
+        </div>
+      </form>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {tareas.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: "var(--text3)", fontSize: 13 }}>No hay tareas pendientes.</div>
+        ) : (
+          tareas.sort((a, b) => a.completada - b.completada).map(t => {
+            const m = materias.find(x => x.id === t.materia_id);
+            return (
+              <div key={t.id} className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, opacity: t.completada ? 0.6 : 1 }}>
+                <input type="checkbox" checked={t.completada} onChange={() => onToggle(t.id, !t.completada)} style={{ width: 18, height: 18, cursor: "pointer" }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, textDecoration: t.completada ? "line-through" : "none", color: t.completada ? "var(--text3)" : "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.titulo}</div>
+                  {m && <div style={{ fontSize: 10, color: "var(--blue)", fontWeight: 600 }}>{m.nombre}</div>}
+                </div>
+                <button className="btn-danger" style={{ padding: "5px 8px", opacity: 0.5, border: "none", background: "transparent" }} onClick={() => onDelete(t.id)}><Icon name="trash" size={12} color="var(--red)" /></button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VistaEventos({ materias, eventos, tareas, onAdd, onEdit, onDelete, onAddTarea, onToggleTarea, onDeleteTarea }) {
+  const [subVista, setSubVista] = useState("calendario"); // 'lista' | 'calendario'
   const [edit, setEdit] = useState(null);
-  const [add, setAdd] = useState(false);
+  const [add, setAdd] = useState(() => !!localStorage.getItem("utn_draft_evento"));
   const [importar, setImportar] = useState(false);
   const [ft, setFt] = useState("all");
   const [confirm, setConfirm] = useState(null);
+  const [fechaSel, setFechaSel] = useState(new Date());
+
   const hoy = new Date();
   const fil = useMemo(() => eventos.filter(e => ft === "all" || e.tipo === ft).sort((a, b) => new Date(a.fecha) - new Date(b.fecha)), [eventos, ft]);
   const prox = fil.filter(e => new Date(e.fecha) >= hoy);
   const pas = fil.filter(e => new Date(e.fecha) < hoy);
+
+  // Lógica de Calendario Mensual
+  const diasMes = useMemo(() => {
+    const año = fechaSel.getFullYear();
+    const mes = fechaSel.getMonth();
+    const primerDia = new Date(año, mes, 1).getDay(); // 0=Dom, 1=Lun...
+    const ultimoDia = new Date(año, mes + 1, 0).getDate();
+    const dias = [];
+    // Ajuste para que empiece en Lunes (si querés que empiece en domingo, sacá el ajuste)
+    const start = primerDia === 0 ? 6 : primerDia - 1;
+    for (let i = 0; i < start; i++) dias.push(null);
+    for (let i = 1; i <= ultimoDia; i++) dias.push(new Date(año, mes, i));
+    return dias;
+  }, [fechaSel]);
+
+  const irMes = (n) => setFechaSel(new Date(fechaSel.getFullYear(), fechaSel.getMonth() + n, 1));
+
   const Row = ({ ev }) => {
     const mat = materias.find(m => m.id === ev.materia_id);
     const tipo = TIPO_EVENTO[ev.tipo];
     const past = new Date(ev.fecha) < hoy;
-    const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
+    const d = Math.ceil((new Date(ev.fecha + "T00:00:00") - new Date(hoy.toISOString().split("T")[0] + "T00:00:00")) / 86400000);
     const lbl = past ? "Pasado" : d === 0 ? "Hoy" : d === 1 ? "Mañana" : `${d}d`;
     return (
       <div className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 11, opacity: past ? 0.45 : 1 }}>
@@ -1112,8 +1546,20 @@ function VistaEventos({ materias, eventos, onAdd, onEdit, onDelete }) {
       </div>
     );
   };
+
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+      {/* Selector de sub-vista */}
+      <div style={{ display: "flex", gap: 1, background: "var(--surface2)", borderRadius: 7, padding: 3, width: "fit-content" }}>
+        {[{ id: "calendario", label: "Calendario" }, { id: "lista", label: "Lista" }, { id: "tareas", label: "Tareas" }].map(v => (
+          <button key={v.id} onClick={() => setSubVista(v.id)} style={{
+            padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 600,
+            background: subVista === v.id ? "var(--blue)" : "transparent",
+            color: subVista === v.id ? "#fff" : "var(--text2)", transition: "all 0.15s"
+          }}>{v.label}</button>
+        ))}
+      </div>
+
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 5, flex: 1, flexWrap: "wrap" }}>
           {["all", ...Object.keys(TIPO_EVENTO)].map(k => { const t = k === "all" ? null : TIPO_EVENTO[k]; const ac = ft === k; return <button key={k} onClick={() => setFt(k)} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 500, border: `1px solid ${ac ? (t?.color || "var(--blue)") : "var(--border)"}`, background: ac ? (t ? `${t.color}18` : "var(--blue-dim)") : "transparent", color: ac ? (t?.color || "var(--blue)") : "var(--text2)", transition: "all 0.15s" }}>{k === "all" ? "Todos" : t.label}</button>; })}
@@ -1121,9 +1567,55 @@ function VistaEventos({ materias, eventos, onAdd, onEdit, onDelete }) {
         <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => setImportar(true)}>Importar desde texto</button>
         <button className="btn-primary" onClick={() => setAdd(true)}><Icon name="plus" size={14} color="#fff" />Agregar</button>
       </div>
-      {prox.length > 0 && <><p className="section-title">Próximos ({prox.length})</p><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{prox.map(ev => <Row key={ev.id} ev={ev} />)}</div></>}
-      {pas.length > 0 && <><p className="section-title" style={{ marginTop: 8 }}>Pasados ({pas.length})</p><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{pas.map(ev => <Row key={ev.id} ev={ev} />)}</div></>}
-      {fil.length === 0 && <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Sin eventos</div>}
+
+      {subVista === "calendario" ? (
+        <div className="card" style={{ padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <button className="btn-ghost" onClick={() => irMes(-1)}><Icon name="chevronL" size={14} /></button>
+            <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 18, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>
+              {fechaSel.toLocaleDateString("es-AR", { month: "long", year: "numeric" })}
+            </span>
+            <button className="btn-ghost" onClick={() => irMes(1)}><Icon name="chevronR" size={14} /></button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+            {["L", "M", "X", "J", "V", "S", "D"].map(d => (
+              <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--text3)", paddingBottom: 8 }}>{d}</div>
+            ))}
+            {diasMes.map((d, i) => {
+              if (!d) return <div key={`empty-${i}`} style={{ aspectRatio: "1/1" }} />;
+              const fIso = d.toISOString().split("T")[0];
+              const evsHoy = eventos.filter(e => e.fecha === fIso);
+              const esHoy = fIso === hoy.toISOString().split("T")[0];
+              return (
+                <div key={i} style={{
+                  aspectRatio: "1/1", background: esHoy ? "var(--blue-dim)" : "var(--surface2)",
+                  border: `1px solid ${esHoy ? "var(--blue)" : "var(--border)"}`,
+                  borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  position: "relative", cursor: "pointer"
+                }} onClick={() => {
+                  setSubVista("lista");
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: esHoy ? 700 : 400, color: esHoy ? "var(--blue)" : "var(--text)" }}>{d.getDate()}</span>
+                  <div style={{ display: "flex", gap: 2, marginTop: 4, flexWrap: "wrap", justifyContent: "center" }}>
+                    {evsHoy.map(e => (
+                      <div key={e.id} style={{ width: 4, height: 4, borderRadius: "50%", background: TIPO_EVENTO[e.tipo]?.color || "var(--blue)" }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : subVista === "tareas" ? (
+        <VistaTareas materias={materias} tareas={tareas} onAdd={onAddTarea} onToggle={onToggleTarea} onDelete={onDeleteTarea} />
+      ) : (
+        <>
+          {prox.length > 0 && <><p className="section-title">Próximos ({prox.length})</p><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{prox.map(ev => <Row key={ev.id} ev={ev} />)}</div></>}
+          {pas.length > 0 && <><p className="section-title" style={{ marginTop: 8 }}>Pasados ({pas.length})</p><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{pas.map(ev => <Row key={ev.id} ev={ev} />)}</div></>}
+          {fil.length === 0 && <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Sin eventos</div>}
+        </>
+      )}
+
       {add && <Modal title="Nuevo Evento" onClose={() => setAdd(false)}><FormEvento materias={materias} onSave={f => { onAdd(f); setAdd(false); }} onClose={() => setAdd(false)} /></Modal>}
       {edit && <Modal title="Editar Evento" onClose={() => setEdit(null)}><FormEvento materias={materias} initial={edit} onSave={f => { onEdit(edit.id, f); setEdit(null); }} onClose={() => setEdit(null)} /></Modal>}
       {importar && <Modal title="Importar eventos desde texto" onClose={() => setImportar(false)} width={600}>
@@ -1134,234 +1626,210 @@ function VistaEventos({ materias, eventos, onAdd, onEdit, onDelete }) {
   );
 }
 
-// ─── ARCHIVOS (R2 + CARPETAS POR MATERIA) ────────────────────────────────────
-function VistaArchivos({ materias, userId, showToast }) {
-  const [archivos, setArchivos] = useState([]);
-  const [carpetas, setCarpetas] = useState([]);
-  const [loading, setLoading] = useState(true);
+function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskIA, onRefresh }) {
+  const [loading, setLoading] = useState(false);
+  const [nav, setNav] = useState(null); // null=raíz, {tipo:"materia",id} o {tipo:"carpeta",id,materiaId}
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [drag, setDrag] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [confirmCarpeta, setConfirmCarpeta] = useState(null);
-  const [nav, setNav] = useState(null); // null=raíz, {tipo:"materia",id} o {tipo:"carpeta",id,materiaId}
   const [nuevaCarpeta, setNuevaCarpeta] = useState(false);
   const [nombreCarpeta, setNombreCarpeta] = useState("");
-  const [drag, setDrag] = useState(false);
+  const [busq, setBusq] = useState("");
 
-  useEffect(() => { cargar(); }, []);
+  const fT = b => b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${(b / 1e3).toFixed(0)} KB` : `${b} B`;
+  const tC = t => ({ PDF: "#ff4d4d", DOCX: "#2b579a", DOC: "#2b579a", XLSX: "#217346", PPTX: "#d24726", PNG: "#ff8c00", JPG: "#ff8c00", ZIP: "#fcd116" })[t] || "var(--text2)";
 
-  const cargar = async () => {
-    setLoading(true);
-    const [{ data: a, error: ea }, { data: c, error: ec }] = await Promise.all([
-      sb.from("archivos").select("*").order("created_at", { ascending: false }),
-      sb.from("carpetas").select("*").order("nombre"),
-    ]);
-    if (ea) showToast(ea.message);
-    if (ec) showToast(ec.message);
-    setArchivos(a || []);
-    setCarpetas(c || []);
-    setLoading(false);
+  const subir = async (files, materiaId, carpetaId = null) => {
+    setUploading(true);
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      setUploadProgress(`Subiendo ${f.name}... (${i + 1}/${files.length})`);
+      try {
+        const ext = f.name.split(".").pop().toUpperCase();
+        const path = `${userId}/${Date.now()}_${f.name}`;
+        const formData = new FormData();
+        formData.append("file", f);
+        formData.append("path", path);
+
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const { url, error } = await res.json();
+        if (error) throw new Error(error);
+
+        await sb.from("archivos").insert({
+          user_id: userId, materia_id: materiaId, carpeta_id: carpetaId,
+          nombre: f.name, tipo: ext, tamaño: f.size, storage_path: path, url
+        });
+      } catch (e) { showToast(`Error: ${e.message}`); }
+    }
+    setUploadProgress("");
+    setUploading(false);
+    onRefresh();
   };
+
+  const eliminar = async (a) => {
+    if (a.storage_path) {
+      await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`, { method: "DELETE" });
+    }
+    const { error } = await sb.from("archivos").delete().eq("id", a.id);
+    if (error) { showToast(error.message); return; }
+    onRefresh();
+  };
+
+  const descargar = async (a) => {
+    try {
+      const res = await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`);
+      const { url, error } = await res.json();
+      if (error) throw new Error(error);
+      window.open(url, "_blank");
+    } catch (e) { showToast(e.message); }
+  };
+
+  const SubirBtn = ({ materiaId, carpetaId = null }) => (
+    <label className="btn-primary" style={{ cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.7 : 1, fontSize: 13, padding: "8px 16px" }}>
+      <Icon name="plus" size={14} color="#fff" />
+      {uploading ? "Subiendo..." : "Subir Archivo"}
+      <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
+    </label>
+  );
+
+  const ArchivoCard = ({ a }) => (
+    <div className="card fade-in" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ width: 40, height: 40, background: `${tC(a.tipo)}15`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 10, fontWeight: 800, color: tC(a.tipo) }}>{a.tipo}</span>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button className="btn-ghost" style={{ padding: 5 }} title="Preguntar a IA" onClick={() => onAskIA(a)}><Icon name="asistente" size={14} color="var(--blue)" /></button>
+          <button className="btn-ghost" style={{ padding: 5 }} onClick={() => descargar(a)}><Icon name="chevronR" size={14} /></button>
+        </div>
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre}</div>
+      <button className="btn-danger" style={{ padding: "4px 8px", background: "transparent" }} onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={12} color="var(--red)" /></button>
+    </div>
+  );
+
+  const ArchivoRow = ({ a }) => (
+    <div className="card" style={{ padding: 12, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ width: 32, height: 32, background: `${tC(a.tipo)}15`, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span style={{ fontSize: 9, fontWeight: 800, color: tC(a.tipo) }}>{a.tipo}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
+        <div style={{ fontSize: 10, color: "var(--text3)" }}>{fT(a.tamaño)}</div>
+      </div>
+      <button className="btn-ghost" style={{ padding: 5 }} title="Preguntar a IA" onClick={() => onAskIA(a)}><Icon name="asistente" size={14} color="var(--blue)" /></button>
+      <button className="btn-ghost" onClick={() => descargar(a)}><Icon name="chevronR" size={14} /></button>
+      <button className="btn-danger" onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={14} /></button>
+    </div>
+  );
+
+  const DropZone = ({ materiaId, carpetaId = null }) => (
+    <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); subir(e.dataTransfer.files, materiaId, carpetaId); }}
+      style={{ border: `2px dashed ${drag ? "var(--blue)" : "var(--border)"}`, borderRadius: 8, padding: 16, textAlign: "center", background: drag ? "var(--blue-dim)" : "transparent", color: "var(--text2)", fontSize: 12, transition: "all 0.2s" }}>
+      {drag ? "Soltá acá" : "O arrastrá archivos aquí"}
+    </div>
+  );
 
   const crearCarpeta = async () => {
     if (!nombreCarpeta.trim() || !nav?.id) return;
-    const { data, error } = await sb.from("carpetas").insert({
-      user_id: userId, nombre: nombreCarpeta.trim(), materia_id: nav.id
-    }).select().single();
+    const { error } = await sb.from("carpetas").insert({ user_id: userId, nombre: nombreCarpeta.trim(), materia_id: nav.id });
     if (error) { showToast(error.message); return; }
-    setCarpetas(cs => [...cs, data]);
     setNombreCarpeta(""); setNuevaCarpeta(false);
+    onRefresh();
   };
 
   const eliminarCarpeta = async (c) => {
     await sb.from("archivos").update({ carpeta_id: null }).eq("carpeta_id", c.id);
     const { error } = await sb.from("carpetas").delete().eq("id", c.id);
     if (error) { showToast(error.message); return; }
-    setCarpetas(cs => cs.filter(x => x.id !== c.id));
     if (nav?.id === c.id) setNav({ tipo: "materia", id: c.materia_id });
-    await cargar();
+    onRefresh();
   };
-
-  const subir = async (files, materiaId, carpetaId = null) => {
-    setUploading(true);
-    for (const file of Array.from(files)) {
-      setUploadProgress(file.name);
-      try {
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-            "x-file-name": encodeURIComponent(file.name),
-            "x-user-id": userId,
-          },
-          body: file,
-        });
-        const data = await res.json();
-        if (data.error) { showToast(data.error); continue; }
-        const { error: dbErr } = await sb.from("archivos").insert({
-          user_id: userId, materia_id: materiaId, carpeta_id: carpetaId,
-          nombre: file.name, tipo: file.name.split(".").pop().toUpperCase(),
-          tamaño: file.size, storage_path: data.key,
-        });
-        if (dbErr) showToast(dbErr.message);
-      } catch (e) { showToast(`Error: ${e.message}`); }
-    }
-    setUploadProgress("");
-    await cargar();
-    setUploading(false);
-  };
-
-  const eliminar = async (a) => {
-    if (a.storage_path) {
-      try { await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`, { method: "DELETE" }); }
-      catch (e) { showToast(e.message); }
-    }
-    const { error } = await sb.from("archivos").delete().eq("id", a.id);
-    if (error) { showToast(error.message); return; }
-    setArchivos(prev => prev.filter(x => x.id !== a.id));
-  };
-
-  const descargar = async (a) => {
-    if (!a.storage_path) return;
-    try {
-      const res = await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`);
-      const data = await res.json();
-      if (data.error) { showToast(data.error); return; }
-      window.open(data.url, "_blank");
-    } catch (e) { showToast(e.message); }
-  };
-
-  const fT = b => b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${(b / 1e3).toFixed(0)} KB` : `${b} B`;
-  const tC = t => ({ PDF: "var(--red)", DOCX: "var(--blue)", DOC: "var(--blue)", XLSX: "var(--green)", PPTX: "var(--slate)", PNG: "var(--slate)", JPG: "var(--slate)" })[t] || "var(--text2)";
-
-  const SubirBtn = ({ materiaId, carpetaId = null }) => (
-    <label className="btn-primary" style={{ cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.7 : 1, fontSize: 12, padding: "6px 14px" }}>
-      <Icon name="upload" size={13} color="#fff" />
-      {uploading ? (uploadProgress ? `${uploadProgress.slice(0, 14)}…` : "Subiendo...") : "Subir archivo"}
-      <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
-    </label>
-  );
-
-  const ArchivoRow = ({ a }) => (
-    <div className="card" style={{ padding: "9px 13px", display: "flex", alignItems: "center", gap: 10 }}>
-      <span style={{ fontFamily: "'DM Mono'", fontSize: 9, fontWeight: 600, color: tC(a.tipo), background: `${tC(a.tipo)}15`, padding: "2px 5px", borderRadius: 3, flexShrink: 0 }}>{a.tipo}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre}</div>
-        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1, display: "flex", gap: 8 }}>
-          {a.tamaño && <span>{fT(a.tamaño)}</span>}
-          <span>{new Date(a.created_at).toLocaleDateString("es-AR")}</span>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-        {a.storage_path && <button className="btn-ghost" style={{ padding: "4px 9px", fontSize: 11 }} onClick={() => descargar(a)}>Descargar</button>}
-        <button className="btn-danger" style={{ padding: "4px 8px" }} onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={12} /></button>
-      </div>
-    </div>
-  );
-
-  const DropZone = ({ materiaId, carpetaId = null }) => (
-    <div onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
-      onDrop={e => { e.preventDefault(); setDrag(false); subir(e.dataTransfer.files, materiaId, carpetaId) }}
-      style={{ border: `1px dashed ${drag ? "var(--blue)" : "var(--border)"}`, borderRadius: 8, padding: "12px", textAlign: "center", background: drag ? "var(--blue-dim)" : "var(--surface)", transition: "all 0.2s", color: "var(--text2)", fontSize: 12 }}>
-      {drag ? "Soltar aquí" : "O arrastrar archivos aquí"}
-    </div>
-  );
 
   if (loading) return <Spinner />;
 
-  // ── VISTA CARPETA ────────────────────────────────────────────────────────────
+  // VISTA CARPETA
   if (nav?.tipo === "carpeta") {
     const carpeta = carpetas.find(c => c.id === nav.id);
     const materia = materias.find(m => m.id === nav.materiaId);
     const archsCarpeta = archivos.filter(a => a.carpeta_id === nav.id);
     return (
-      <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <button className="btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setNav(null)}>Archivos</button>
-          <span style={{ color: "var(--text3)" }}>›</span>
-          <button className="btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setNav({ tipo: "materia", id: nav.materiaId })}>{materia?.nombre}</button>
-          <span style={{ color: "var(--text3)" }}>›</span>
-          <span style={{ fontSize: 12, color: "var(--text)", fontWeight: 600 }}>{carpeta?.nombre}</span>
+      <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav(null)}>Archivos</button>
+          <span style={{ opacity: 0.4 }}>&rsaquo;</span>
+          <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav({ tipo: "materia", id: nav.materiaId })}>{materia?.nombre}</button>
+          <span style={{ opacity: 0.4 }}>&rsaquo;</span>
+          <span style={{ fontWeight: 700 }}>{carpeta?.nombre}</span>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: "var(--text2)" }}>{archsCarpeta.length} archivo{archsCarpeta.length !== 1 ? "s" : ""}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: "var(--text2)" }}>{archsCarpeta.length} archivos</span>
           <SubirBtn materiaId={nav.materiaId} carpetaId={nav.id} />
         </div>
         <DropZone materiaId={nav.materiaId} carpetaId={nav.id} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {archsCarpeta.length === 0
-            ? <div style={{ padding: 20, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Esta carpeta está vacía</div>
-            : archsCarpeta.map(a => <ArchivoRow key={a.id} a={a} />)
-          }
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {archsCarpeta.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Carpeta vacía</div>
+            : archsCarpeta.map(a => <ArchivoRow key={a.id} a={a} />)}
         </div>
         {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { eliminar(confirm.archivo); setConfirm(null); }} />}
       </div>
     );
   }
 
-  // ── VISTA MATERIA ────────────────────────────────────────────────────────────
+  // VISTA MATERIA
   if (nav?.tipo === "materia") {
     const materia = materias.find(m => m.id === nav.id);
     const est = ESTADOS[materia?.estado];
     const carpetasMateria = carpetas.filter(c => c.materia_id === nav.id);
     const archsDirectos = archivos.filter(a => a.materia_id === nav.id && !a.carpeta_id);
     return (
-      <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <button className="btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setNav(null)}>Archivos</button>
-          <span style={{ color: "var(--text3)" }}>›</span>
-          <span style={{ fontSize: 12, color: "var(--text)", fontWeight: 600 }}>{materia?.nombre}</span>
+      <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav(null)}>Archivos</button>
+          <span style={{ opacity: 0.4 }}>&rsaquo;</span>
+          <span style={{ fontWeight: 700 }}>{materia?.nombre}</span>
           {est && <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-          <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setNuevaCarpeta(true)}>
-            <Icon name="plus" size={12} />Nueva carpeta
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => setNuevaCarpeta(true)}>
+            <Icon name="plus" size={12} /> Nueva carpeta
           </button>
           <SubirBtn materiaId={nav.id} />
         </div>
-        {carpetasMateria.length > 0 && <>
-          <p className="section-title">Carpetas</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 }}>
+        {carpetasMateria.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
             {carpetasMateria.map(c => {
               const count = archivos.filter(a => a.carpeta_id === c.id).length;
               return (
-                <div key={c.id} className="card" style={{ padding: "11px 13px", cursor: "pointer", transition: "border-color 0.15s", display: "flex", alignItems: "center", gap: 9 }}
+                <div key={c.id} className="card" style={{ padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "border-color 0.15s" }}
                   onClick={() => setNav({ tipo: "carpeta", id: c.id, materiaId: nav.id })}
                   onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>📁</span>
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"} >
+                  <span style={{ fontSize: 18 }}>📁</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre}</div>
-                    <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 1 }}>{count} archivo{count !== 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{c.nombre}</div>
+                    <div style={{ fontSize: 10, color: "var(--text3)" }}>{count} archivo{count !== 1 ? "s" : ""}</div>
                   </div>
-                  <button className="btn-danger" style={{ padding: "3px 6px", flexShrink: 0 }} onClick={e => { e.stopPropagation(); setConfirmCarpeta(c); }}>
-                    <Icon name="trash" size={11} />
-                  </button>
+                  <button className="btn-danger" style={{ padding: "3px 6px" }} onClick={e => { e.stopPropagation(); setConfirmCarpeta(c); }}><Icon name="trash" size={11} /></button>
                 </div>
               );
             })}
           </div>
-        </>}
-        <p className="section-title">Archivos directos</p>
-        <DropZone materiaId={nav.id} carpetaId={null} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {archsDirectos.length === 0
-            ? <div style={{ padding: 10, textAlign: "center", color: "var(--text2)", fontSize: 12 }}>Sin archivos directos</div>
-            : archsDirectos.map(a => <ArchivoRow key={a.id} a={a} />)
-          }
+        )}
+        <DropZone materiaId={nav.id} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {archsDirectos.length === 0 ? <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 12, padding: 10 }}>Sin archivos directos. Subílos aquí o dentro de una carpeta.</div>
+            : archsDirectos.map(a => <ArchivoRow key={a.id} a={a} />)}
         </div>
         {nuevaCarpeta && (
-          <Modal title="Nueva carpeta" onClose={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <Lbl>Nombre</Lbl>
-                <input style={{ width: "100%" }} value={nombreCarpeta} onChange={e => setNombreCarpeta(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && crearCarpeta()} placeholder="Ej: Parciales, Apuntes, TPs..." />
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn-primary" style={{ flex: 1 }} onClick={crearCarpeta}>Crear</button>
-                <button className="btn-ghost" onClick={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>Cancelar</button>
-              </div>
+          <Modal title="Nueva Carpeta" onClose={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>
+            <input style={{ width: "100%" }} value={nombreCarpeta} onChange={e => setNombreCarpeta(e.target.value)} onKeyDown={e => e.key === "Enter" && crearCarpeta()} placeholder="Nombre..." />
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button className="btn-primary" style={{ flex: 1 }} onClick={crearCarpeta}>Crear</button>
+              <button className="btn-ghost" onClick={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>Cancelar</button>
             </div>
           </Modal>
         )}
@@ -1371,60 +1839,137 @@ function VistaArchivos({ materias, userId, showToast }) {
     );
   }
 
-  // ── VISTA RAÍZ ───────────────────────────────────────────────────────────────
-  const materiasConContenido = materias.filter(m => archivos.some(a => a.materia_id === m.id) || carpetas.some(c => c.materia_id === m.id));
-  const materiasVacias = materias.filter(m => !archivos.some(a => a.materia_id === m.id) && !carpetas.some(c => c.materia_id === m.id));
+  // VISTA RAÍZ
+  const matsConArchivos = materias.filter(m => archivos.some(a => a.materia_id === m.id) || carpetas.some(c => c.materia_id === m.id));
+  const matsVacias = materias.filter(m => !archivos.some(a => a.materia_id === m.id) && !carpetas.some(c => c.materia_id === m.id));
   return (
-    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-      <p style={{ fontSize: 13, color: "var(--text2)" }}>Seleccioná una materia para ver o subir archivos.</p>
-      {materiasConContenido.length > 0 && <>
-        <p className="section-title">Materias con archivos</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {materiasConContenido.map(m => {
-            const est = ESTADOS[m.estado];
-            const totalA = archivos.filter(a => a.materia_id === m.id).length;
-            const totalC = carpetas.filter(c => c.materia_id === m.id).length;
-            return (
-              <div key={m.id} className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color 0.15s" }}
-                onClick={() => setNav({ tipo: "materia", id: m.id })}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{m.nombre}</div>
-                  <div style={{ fontSize: 11, color: "var(--text2)", display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    {totalA > 0 && <span>{totalA} archivo{totalA !== 1 ? "s" : ""}</span>}
-                    {totalC > 0 && <span>{totalC} carpeta{totalC !== 1 ? "s" : ""}</span>}
-                    <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>
-                  </div>
-                </div>
-                <Icon name="chevronR" size={16} color="var(--text3)" />
-              </div>
-            );
-          })}
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="card" style={{ padding: 16 }}>
+        <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 800 }}>BIBLIOTECA</h2>
+        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>{archivos.length} archivos en total · Seleccioná una materia para subir archivos</p>
+      </div>
+      <div style={{ position: "relative" }}>
+        <input style={{ width: "100%", paddingLeft: 34 }} placeholder="Buscar archivos..." value={busq} onChange={e => setBusq(e.target.value)} />
+        <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.4 }}><Icon name="dashboard" size={15} /></div>
+      </div>
+      {busq ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+          {archivos.filter(a => a.nombre.toLowerCase().includes(busq.toLowerCase())).map(a => <ArchivoCard key={a.id} a={a} />)}
         </div>
-      </>}
-      {materiasVacias.length > 0 && <>
-        <p className="section-title" style={{ marginTop: 4 }}>Otras materias</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {materiasVacias.map(m => {
-            const est = ESTADOS[m.estado];
-            return (
-              <div key={m.id} className="card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", opacity: 0.55, transition: "all 0.15s" }}
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {matsConArchivos.length > 0 && <>
+            <p className="section-title">Mis materias</p>
+            {matsConArchivos.map(m => {
+              const est = ESTADOS[m.estado];
+              const totalA = archivos.filter(a => a.materia_id === m.id).length;
+              const totalC = carpetas.filter(c => c.materia_id === m.id).length;
+              return (
+                <div key={m.id} className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color 0.15s" }}
+                  onClick={() => setNav({ tipo: "materia", id: m.id })}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                  <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est?.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{m.nombre}</div>
+                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>{totalA} archivo{totalA !== 1 ? "s" : ""} · {totalC} carpeta{totalC !== 1 ? "s" : ""}</div>
+                  </div>
+                  <span className="tag" style={{ background: est?.bg, color: est?.color }}>{est?.label}</span>
+                  <Icon name="chevronR" size={16} color="var(--text3)" />
+                </div>
+              );
+            })}
+          </>}
+          {matsVacias.length > 0 && <>
+            <p className="section-title" style={{ marginTop: 4 }}>Sin archivos aún</p>
+            {matsVacias.map(m => (
+              <div key={m.id} className="card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", opacity: 0.5, transition: "opacity 0.15s" }}
                 onClick={() => setNav({ tipo: "materia", id: m.id })}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border2)"; e.currentTarget.style.opacity = "1"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.opacity = "0.55"; }}>
-                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{m.nombre}</span>
-                <span style={{ fontSize: 11, color: "var(--text3)" }}>Sin archivos</span>
+                onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                onMouseLeave={e => e.currentTarget.style.opacity = "0.5"}>
+                <span style={{ flex: 1, fontSize: 13 }}>{m.nombre}</span>
                 <Icon name="chevronR" size={14} color="var(--text3)" />
               </div>
-            );
-          })}
+            ))}
+          </>}
+          {materias.length === 0 && <div className="card" style={{ padding: 28, textAlign: "center", color: "var(--text2)" }}>Agregá materias primero para organizar tus archivos</div>}
         </div>
-      </>}
-      {materias.length === 0 && <div className="card" style={{ padding: 28, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Primero agregá materias para organizar tus archivos</div>}
+      )}
     </div>
+  );
+}
+
+function VistaChatArchivo({ archivo, onClose, callIA, modelo }) {
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reading, setReading] = useState(true);
+  const [contexto, setContexto] = useState("");
+  const bottomRef = useRef(null);
+
+  useEffect(() => { extraerTexto(); }, [archivo]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
+
+  const extraerTexto = async () => {
+    setReading(true);
+    try {
+      const res = await fetch(`/api/upload?key=${encodeURIComponent(archivo.storage_path)}`);
+      const { url } = await res.json();
+      const fileRes = await fetch(url);
+      const blob = await fileRes.blob();
+
+      if (archivo.tipo === "PDF") {
+        const arrayBuffer = await blob.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          fullText += content.items.map(s => s.str).join(" ") + " ";
+        }
+        setContexto(fullText);
+      } else {
+        const text = await blob.text();
+        setContexto(text);
+      }
+      setMsgs([{ role: "assistant", content: `Analicé "${archivo.nombre}". ¿Qué duda tenés?` }]);
+    } catch (e) {
+      setMsgs([{ role: "assistant", content: "No pude leer el archivo, pero preguntame igual y trato de ayudarte." }]);
+    }
+    setReading(false);
+  };
+
+  const enviar = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const nMsgs = [...msgs, userMsg];
+    setMsgs(nMsgs); setInput(""); setLoading(true);
+    try {
+      const sys = `Sos un experto analizando el apunte "${archivo.nombre}". Contexto: ${contexto.slice(0, 10000)}. Respondé de forma académica y clara.`;
+      const txt = await callIA(sys, nMsgs, modelo);
+      setMsgs(m => [...m, { role: "assistant", content: txt }]);
+    } catch (e) { setMsgs(m => [...m, { role: "assistant", content: "Error: " + e.message }]); }
+    setLoading(false);
+  };
+
+  return (
+    <Modal title={`IA: ${archivo.nombre}`} onClose={onClose} width="500px">
+      <div style={{ height: 400, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+          {reading && <div style={{ textAlign: "center", padding: 20 }}><Spinner /><p style={{ fontSize: 12, marginTop: 10 }}>Leyendo apunte...</p></div>}
+          {msgs.map((m, i) => (
+            <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? "var(--blue)" : "var(--surface2)", color: m.role === "user" ? "#fff" : "var(--text)", padding: "8px 12px", borderRadius: 10, fontSize: 13, maxWidth: "85%" }}>
+              {m.content}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+        <div style={{ display: "flex", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+          <input style={{ flex: 1 }} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && enviar()} placeholder="Escribí una pregunta..." disabled={reading} />
+          <button className="btn-primary" onClick={enviar} disabled={loading || reading}><Icon name="send" size={16} color="#fff" /></button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1442,15 +1987,12 @@ function VistaAsistente({ materias, eventos }) {
   const bottomRef = useRef(null);
   const materia = materias.find(m => m.id === materiaId);
 
-  // Cambio de modelo → persiste en localStorage
   const cambiarModelo = (m) => { setModelo(m); localStorage.setItem("utn_modelo", m); };
 
-  // Cargar historial al cambiar materia/modo
   useEffect(() => {
     if (materiaId && modo) { const k = `${materiaId}_${modo}`; setMsgs(historial[k] || []); }
   }, [materiaId, modo]);
 
-  // Guardar historial al cambiar msgs (slice -20)
   useEffect(() => {
     if (materiaId && modo && msgs.length > 0) {
       const k = `${materiaId}_${modo}`;
@@ -1518,7 +2060,6 @@ function VistaAsistente({ materias, eventos }) {
 
   if (!modo) return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Selector de materia */}
       <div>
         <Lbl>Seleccioná una materia</Lbl>
         <select style={{ width: "100%", maxWidth: 420 }} value={materiaId || ""} onChange={e => setMateriaId(e.target.value)}>
@@ -1531,7 +2072,6 @@ function VistaAsistente({ materias, eventos }) {
         <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>Año {materia.año} · {materia.cuatrimestre}° cuat. · <span style={{ color: ESTADOS[materia.estado]?.color }}>{ESTADOS[materia.estado]?.label}</span></div>
       </div>}
 
-      {/* Motor de IA */}
       <div>
         <p className="section-title">Motor de IA</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1550,7 +2090,6 @@ function VistaAsistente({ materias, eventos }) {
         </div>
       </div>
 
-      {/* Modos */}
       <div>
         <p className="section-title">Elegí un modo</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }}>
@@ -1572,12 +2111,10 @@ function VistaAsistente({ materias, eventos }) {
   );
 
   const modoInfo = MODOS_IA.find(m => m.id === modo);
-  const userMsgs = msgs.filter(m => m.role === "user").length;
   const totalMsgs = msgs.length;
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 130px)", minHeight: 400 }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <button className="btn-ghost" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setModo(null)}><Icon name="chevronL" size={13} />Volver</button>
         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1588,7 +2125,6 @@ function VistaAsistente({ materias, eventos }) {
         <button className="btn-ghost" style={{ padding: "6px 10px" }} onClick={limpiar} title="Limpiar conversación"><Icon name="refresh" size={13} /></button>
       </div>
 
-      {/* Mensajes */}
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingRight: 4 }}>
         {msgs.length === 0 && !loading && <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "40px 20px" }}>Iniciando sesión...</div>}
         {msgs.map((m, i) => (
@@ -1600,12 +2136,10 @@ function VistaAsistente({ materias, eventos }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Contador de mensajes */}
       <div style={{ textAlign: "center", fontSize: 11, color: "var(--text3)", padding: "6px 0 4px" }}>
         {totalMsgs} {totalMsgs === 1 ? "mensaje" : "mensajes"} en esta sesión
       </div>
 
-      {/* Input */}
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} placeholder="Escribí tu mensaje... (Enter para enviar)" rows={2} style={{ flex: 1, resize: "none", borderRadius: 8, lineHeight: 1.5, fontSize: 13, padding: "10px 12px" }} />
         <button className="btn-primary" onClick={enviar} disabled={loading || !input.trim()} style={{ padding: "10px 14px", opacity: loading || !input.trim() ? 0.5 : 1 }}><Icon name="send" size={15} color="#fff" /></button>
@@ -1619,11 +2153,12 @@ const NAV = [
   { id: "dashboard", label: "Dashboard", icon: "dashboard" },
   { id: "materias", label: "Materias", icon: "materias" },
   { id: "horarios", label: "Horarios", icon: "horarios" },
-  { id: "eventos", label: "Eventos", icon: "eventos" },
+  { id: "eventos", label: "Agenda", icon: "eventos" },
+  { id: "enfoque", label: "Enfoque", icon: "horarios" },
   { id: "archivos", label: "Archivos", icon: "archivos" },
   { id: "asistente", label: "IA", icon: "asistente" },
 ];
-const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Eventos y Fechas", archivos: "Archivos", asistente: "Asistente IA" };
+const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", asistente: "Asistente IA" };
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -1633,16 +2168,72 @@ export default function App() {
   const [sideOpen, setSideOpen] = useState(!isMobile);
   const [materias, setMaterias] = useState([]);
   const [eventos, setEventos] = useState([]);
+  const [tareas, setTareas] = useState([]);
+  const [archivos, setArchivos] = useState([]);
+  const [carpetas, setCarpetas] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  const [enfoque, setEnfoque] = useState(() => {
+    const saved = localStorage.getItem("utn_enfoque");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...parsed, activo: false };
+    }
+    return { mins: 25, secs: 0, activo: false, modo: "estudio", matId: "", target: null };
+  });
+
+  const [chatArchivo, setChatArchivo] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem("utn_enfoque", JSON.stringify(enfoque));
+  }, [enfoque]);
+
+  useEffect(() => {
+    let interval;
+    if (enfoque.activo && enfoque.target) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        const diff = Math.max(0, Math.floor((enfoque.target - now) / 1000));
+        if (diff === 0) {
+          clearInterval(interval);
+          finalizarCicloEnfoque();
+        } else {
+          setEnfoque(prev => ({ ...prev, mins: Math.floor(diff / 60), secs: diff % 60 }));
+        }
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [enfoque.activo, enfoque.target]);
+
+  const finalizarCicloEnfoque = () => {
+    const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+    audio.play().catch(() => { });
+    if (Notification.permission === "granted") {
+      new Notification(enfoque.modo === "estudio" ? "¡Bloque terminado!" : "¡Descanso terminado!", { body: enfoque.modo === "estudio" ? "Es hora de un descanso." : "Volvemos al estudio." });
+    }
+    const proxModo = enfoque.modo === "estudio" ? "descanso" : "estudio";
+    const proxMins = proxModo === "estudio" ? 25 : 5;
+    setEnfoque(prev => ({ ...prev, activo: false, modo: proxModo, mins: proxMins, secs: 0, target: null }));
+  };
+
+  const startEnfoque = (m, mid) => {
+    const mins = m || enfoque.mins;
+    const target = Date.now() + (mins * 60 + enfoque.secs) * 1000;
+    setEnfoque(prev => ({ ...prev, activo: true, target, matId: mid || prev.matId }));
+  };
+  const pauseEnfoque = () => setEnfoque(prev => ({ ...prev, activo: false, target: null }));
+  const resetEnfoque = () => setEnfoque(prev => ({ ...prev, activo: false, target: null, mins: prev.modo === "estudio" ? 25 : 5, secs: 0 }));
+  const setModoEnfoque = (m) => setEnfoque(prev => ({ ...prev, modo: m, mins: m === "estudio" ? 25 : 5, secs: 0, activo: false, target: null }));
+
+  const progEnfoque = enfoque.modo === "estudio" ? ((25 - enfoque.mins) * 60 + (60 - enfoque.secs)) / (25 * 60) * 100 : ((5 - enfoque.mins) * 60 + (60 - enfoque.secs)) / (5 * 60) * 100;
   const { toasts, show: showToast } = useToast();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showPushConfig, setShowPushConfig] = useState(false);
   const [iaActiva, setIaActiva] = useState(false);
 
   const userId = session?.user?.id;
-  const { estado: pushEstado, activar: activarPush, desactivar: desactivarPush } = usePushNotifications(userId); // se carga desde el perfil del usuario
+  const { estado: pushEstado, activar: activarPush, desactivar: desactivarPush } = usePushNotifications(userId);
 
-  // Sincronizar sideOpen con isMobile al cambiar tamaño
   useEffect(() => { setSideOpen(!isMobile); }, [isMobile]);
 
   useEffect(() => {
@@ -1653,88 +2244,33 @@ export default function App() {
 
   useEffect(() => {
     if (session) cargarTodo();
-    else { setMaterias([]); setEventos([]); setLoadingData(false); }
+    else { setMaterias([]); setEventos([]); setTareas([]); setArchivos([]); setCarpetas([]); setLoadingData(false); }
   }, [session]);
 
   const cargarTodo = async () => {
     setLoadingData(true);
-    const [{ data: m, error: em }, { data: e, error: ee }] = await Promise.all([
-      sb.from("materias").select("*").order("año").order("cuatrimestre"),
+    const [{ data: m }, { data: e }, { data: t }, { data: a }, { data: c }] = await Promise.all([
+      sb.from("materias").select("*").order("año"),
       sb.from("eventos").select("*").order("fecha"),
+      sb.from("tareas").select("*").order("vencimiento"),
+      sb.from("archivos").select("*").order("created_at", { ascending: false }),
+      sb.from("carpetas").select("*").order("nombre"),
     ]);
-    if (em) showToast(em.message);
-    if (ee) showToast(ee.message);
     setMaterias(m || []);
     setEventos(e || []);
-    // Cargar preferencias del usuario (ia_activa)
-    const { data: perfil } = await sb.from("perfiles").select("ia_activa").eq("id", session.user.id).single();
-    if (perfil) setIaActiva(!!perfil.ia_activa);
+    setTareas(t || []);
+    setArchivos(a || []);
+    setCarpetas(c || []);
     setLoadingData(false);
-    // Notificaciones automáticas si push está activo
-    if (Notification.permission === "granted" && m && e) {
-      enviarNotifsAutomaticas(m, e, session.user.id);
-    }
   };
 
-  const enviarNotifsAutomaticas = async (mats, evs, uid) => {
-    const hoy = new Date();
-    const diasSem = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-    const dHoy = diasSem[hoy.getDay()];
-    // Materias de hoy
-    const matHoy = mats.filter(m => m.dias?.includes(dHoy) && ["cursando", "regular"].includes(m.estado));
-    if (matHoy.length > 0) {
-      await fetch("/api/notify?action=send", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: uid,
-          title: `Tenés ${matHoy.length} clase${matHoy.length !== 1 ? "s" : ""} hoy`,
-          body: matHoy.map(m => `${m.horarios?.[dHoy] || m.horario || ""} ${m.nombre}`).join(" · "),
-          url: "/"
-        })
-      }).catch(() => { });
-    }
-    // Eventos próximas 24hs
-    const prox = evs.filter(ev => {
-      const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
-      return d >= 0 && d <= 1;
-    });
-    for (const ev of prox) {
-      const mat = mats.find(m => m.id === ev.materia_id);
-      const d = Math.ceil((new Date(ev.fecha) - hoy) / 86400000);
-      await fetch("/api/notify?action=send", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: uid,
-          title: `${d === 0 ? "Hoy" : "Mañana"}: ${ev.titulo}`,
-          body: `${mat?.nombre || ""}${ev.descripcion ? " · " + ev.descripcion : ""}`,
-          url: "/"
-        })
-      }).catch(() => { });
-    }
-  };
-
-  // PWA
-  useEffect(() => {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="80" fill="#0b0e13"/><text x="256" y="230" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="130" fill="#4a90d9">UTN</text><text x="256" y="330" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="60" fill="#7d8899">TRACKER</text></svg>`;
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-    let lk = document.querySelector("link[rel='icon']");
-    if (!lk) { lk = document.createElement("link"); lk.rel = "icon"; document.head.appendChild(lk); }
-    lk.type = "image/svg+xml"; lk.href = url;
-    document.title = "UTN Tracker";
-    let meta = document.querySelector("meta[name='theme-color']");
-    if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
-    meta.content = "#0b0e13";
-    return () => URL.revokeObjectURL(url);
-  }, []);
-
-  // CRUD con toast en errores
   const addMateria = async (f) => {
-    const { data, error } = await sb.from("materias").insert({ ...f, user_id: session.user.id, nota: f.nota || null }).select().single();
+    const { data, error } = await sb.from("materias").insert({ ...f, user_id: session.user.id }).select().single();
     if (error) { showToast(error.message); return; }
     setMaterias(m => [...m, data]);
   };
   const editMateria = async (id, f) => {
-    const { data, error } = await sb.from("materias").update({ ...f, nota: f.nota || null }).eq("id", id).select().single();
+    const { data, error } = await sb.from("materias").update({ ...f }).eq("id", id).select().single();
     if (error) { showToast(error.message); return; }
     setMaterias(m => m.map(x => x.id === id ? data : x));
   };
@@ -1759,6 +2295,24 @@ export default function App() {
     setEventos(e => e.filter(x => x.id !== id));
   };
 
+  const onAddTarea = async (f) => {
+    const { data, error } = await sb.from("tareas").insert({ ...f, user_id: session.user.id }).select().single();
+    if (error) { showToast(error.message); return; }
+    setTareas(t => [...t, data]);
+  };
+
+  const onToggleTarea = async (id, completada) => {
+    const { data, error } = await sb.from("tareas").update({ completada }).eq("id", id).select().single();
+    if (error) { showToast(error.message); return; }
+    setTareas(t => t.map(x => x.id === id ? data : x));
+  };
+
+  const onDeleteTarea = async (id) => {
+    const { error } = await sb.from("tareas").delete().eq("id", id);
+    if (error) { showToast(error.message); return; }
+    setTareas(t => t.filter(x => x.id !== id));
+  };
+
   if (session === undefined) return <div style={{ minHeight: "100vh", background: "#0b0e13", display: "flex", alignItems: "center", justifyContent: "center" }}><style>{G}</style><Spinner /></div>;
   if (!session) return <AuthPage onAuth={() => sb.auth.getSession().then(({ data: { session } }) => setSession(session))} />;
 
@@ -1766,8 +2320,6 @@ export default function App() {
     <>
       <style>{G}</style>
       <div style={{ display: "flex", minHeight: "100vh" }}>
-
-        {/* SIDEBAR */}
         <aside className="sidebar" style={{ width: sideOpen ? 216 : 56, flexShrink: 0, background: "var(--surface)", borderRight: "1px solid var(--border)", flexDirection: "column", transition: "width 0.22s ease", overflow: "hidden", position: "sticky", top: 0, height: "100vh" }}>
           <div style={{ padding: "17px 13px", display: "flex", alignItems: "center", gap: 9, borderBottom: "1px solid var(--border)", minHeight: 60 }}>
             <div style={{ width: 28, height: 28, background: "var(--blue)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontWeight: 800, color: "#fff", fontSize: 14, flexShrink: 0 }}>U</div>
@@ -1797,20 +2349,13 @@ export default function App() {
           </button>
         </aside>
 
-        {/* MAIN */}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <header className="header-pad" style={{ borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, background: "var(--surface)", position: "sticky", top: 0, zIndex: 10 }}>
             <div style={{ flex: 1 }}>
               <h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 800, letterSpacing: 0.3 }}>{TITULOS[vista]}</h1>
-              <div style={{ fontSize: 10, color: "var(--text3)", fontFamily: "'DM Mono'", marginTop: 1 }}>{new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
             </div>
-            <span className="tag" style={{ background: "var(--blue-dim)", color: "var(--blue)", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon name="signal" size={11} color="var(--blue)" />En línea
-            </span>
-            {/* Botón push notifications */}
             {pushEstado !== "no-soportado" && (
-              <button onClick={pushEstado === "activo" ? desactivarPush : activarPush}
-                title={pushEstado === "activo" ? "Desactivar notificaciones push" : pushEstado === "denegado" ? "Notificaciones bloqueadas en el navegador" : "Activar notificaciones push"}
+              <button onClick={() => setShowPushConfig(true)}
                 style={{
                   background: pushEstado === "activo" ? "var(--blue-dim)" : "var(--surface2)",
                   border: `1px solid ${pushEstado === "activo" ? "var(--blue)" : pushEstado === "denegado" ? "var(--border)" : "var(--border)"}`,
@@ -1841,8 +2386,9 @@ export default function App() {
               {vista === "dashboard" && <Dashboard materias={materias} eventos={eventos} />}
               {vista === "materias" && <VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria} />}
               {vista === "horarios" && <VistaHorarios materias={materias} />}
-              {vista === "eventos" && <VistaEventos materias={materias} eventos={eventos} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento} />}
-              {vista === "archivos" && <VistaArchivos materias={materias} userId={session.user.id} showToast={showToast} />}
+              {vista === "eventos" && <VistaEventos materias={materias} eventos={eventos} tareas={tareas} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento} onAddTarea={onAddTarea} onToggleTarea={onToggleTarea} onDeleteTarea={onDeleteTarea} />}
+              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} />}
+              {vista === "archivos" && <VistaArchivos materias={materias} archivos={archivos} carpetas={carpetas} userId={session.user.id} showToast={showToast} onAskIA={(a) => setChatArchivo(a)} onRefresh={cargarTodo} />}
               {vista === "asistente" && (iaActiva ? <VistaAsistente materias={materias} eventos={eventos} /> : <BloqueadoIA />)}
             </>}
           </div>
@@ -1875,38 +2421,38 @@ export default function App() {
               <button onClick={() => setShowPushConfig(false)} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 20, cursor: "pointer" }}>×</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {push.estado === "no-soportado" && (
+              {pushEstado === "no-soportado" && (
                 <p style={{ fontSize: 13, color: "var(--text2)" }}>Tu navegador no soporta notificaciones push.</p>
               )}
-              {push.estado === "denegado" && (
+              {pushEstado === "denegado" && (
                 <div>
                   <p style={{ fontSize: 13, color: "var(--red)", marginBottom: 8 }}>Notificaciones bloqueadas en el navegador.</p>
                   <p style={{ fontSize: 12, color: "var(--text2)" }}>Para activarlas, entrá a la configuración del navegador y permitilas para este sitio.</p>
                 </div>
               )}
-              {(push.estado === "idle" || push.estado === "solicitando") && (
+              {(pushEstado === "idle" || pushEstado === "solicitando") && (
                 <div>
                   <p style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16, lineHeight: 1.6 }}>
                     Activá las notificaciones push para recibir recordatorios de clases, parciales y eventos aunque la app esté cerrada.
                   </p>
-                  <button className="btn-primary" style={{ width: "100%", justifyContent: "center", opacity: push.estado === "solicitando" ? 0.6 : 1 }}
-                    onClick={push.suscribir} disabled={push.estado === "solicitando"}>
-                    {push.estado === "solicitando" ? "Solicitando permiso..." : "Activar notificaciones"}
+                  <button className="btn-primary" style={{ width: "100%", justifyContent: "center", opacity: pushEstado === "solicitando" ? 0.6 : 1 }}
+                    onClick={activarPush} disabled={pushEstado === "solicitando"}>
+                    {pushEstado === "solicitando" ? "Solicitando permiso..." : "Activar notificaciones"}
                   </button>
                 </div>
               )}
-              {push.estado === "activo" && (
+              {pushEstado === "activo" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(110,231,183,0.08)", border: "1px solid rgba(110,231,183,0.2)", borderRadius: 8, padding: "10px 14px" }}>
                     <span style={{ color: "#6ee7b7", fontSize: 16 }}>✓</span>
                     <span style={{ fontSize: 13, color: "#6ee7b7", fontWeight: 500 }}>Notificaciones activas</span>
                   </div>
                   <button className="btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}
-                    onClick={push.probar}>
+                    onClick={() => {}}>
                     Enviar notificación de prueba
                   </button>
                   <button className="btn-danger" style={{ width: "100%", justifyContent: "center", padding: "8px" }}
-                    onClick={push.desuscribir}>
+                    onClick={desactivarPush}>
                     Desactivar notificaciones
                   </button>
                 </div>
@@ -1915,6 +2461,14 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* CHAT ARCHIVO MODAL */}
+      {chatArchivo && <VistaChatArchivo archivo={chatArchivo} onClose={() => setChatArchivo(null)} callIA={async (sys, msgs, mod) => {
+        const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: sys, messages: msgs, modelo: mod || "claude" }) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        return data.text;
+      }} modelo={localStorage.getItem("utn_modelo") || "claude"} />}
+
       {/* BOTÓN FLOTANTE FRAZK */}
       <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer"
         title="Desarrollado por Franzk — frazk.lol"
