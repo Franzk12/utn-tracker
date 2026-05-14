@@ -5,6 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 const SUPA_URL = import.meta.env.VITE_SUPA_URL;
 const SUPA_ANON = import.meta.env.VITE_SUPA_ANON;
 const sb = createClient(SUPA_URL, SUPA_ANON);
+// ID del usuario "main" — poner el UUID de tu cuenta en .env
+const MAIN_USER_ID = import.meta.env.VITE_MAIN_USER_ID || null;
 
 // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 const ESTADOS = {
@@ -131,6 +133,13 @@ const Icon = ({ name, size = 16, color = "currentColor" }) => {
     warn: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
     bell: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
     lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+    download: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
+    share: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
+    globe: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9",
+    move: "M8 7h12m0 0l-4-4m4 4l-4 4m0 5H4m0 0l4 4m-4-4l4-4",
+    grid: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
+    list: "M4 6h16M4 10h16M4 14h16M4 18h16",
+    folder: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1627,45 +1636,49 @@ function VistaEventos({ materias, eventos, tareas, onAdd, onEdit, onDelete, onAd
 }
 
 function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskIA, onRefresh }) {
-  const [loading, setLoading] = useState(false);
-  const [nav, setNav] = useState(null); // null=raíz, {tipo:"materia",id} o {tipo:"carpeta",id,materiaId}
+  const [nav, setNav] = useState(null);
+  const [upFiles, setUpFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState("");
   const [drag, setDrag] = useState(false);
   const [confirm, setConfirm] = useState(null);
-  const [confirmCarpeta, setConfirmCarpeta] = useState(null);
-  const [nuevaCarpeta, setNuevaCarpeta] = useState(false);
-  const [nombreCarpeta, setNombreCarpeta] = useState("");
+  const [confirmC, setConfirmC] = useState(null);
+  const [newFolder, setNewFolder] = useState(false);
+  const [folderName, setFolderName] = useState("");
   const [busq, setBusq] = useState("");
+  const [view, setView] = useState(() => localStorage.getItem("utn_av") || "list");
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
+  const [moving, setMoving] = useState(null);
+  const isMain = userId === MAIN_USER_ID;
+  const sv = m => { setView(m); localStorage.setItem("utn_av", m); };
 
-  const fT = b => b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${(b / 1e3).toFixed(0)} KB` : `${b} B`;
-  const tC = t => ({ PDF: "#ff4d4d", DOCX: "#2b579a", DOC: "#2b579a", XLSX: "#217346", PPTX: "#d24726", PNG: "#ff8c00", JPG: "#ff8c00", ZIP: "#fcd116" })[t] || "var(--text2)";
+  const fT = b => b > 1e6 ? `${(b/1e6).toFixed(1)}MB` : b > 1e3 ? `${(b/1e3).toFixed(0)}KB` : `${b}B`;
+  const fD = d => d ? new Date(d).toLocaleDateString("es-AR", { day:"2-digit", month:"short" }) : "";
+  const fEmoji = t => ({PDF:"📄",DOCX:"📝",DOC:"📝",XLSX:"📊",XLS:"📊",PPTX:"📈",PNG:"🖼️",JPG:"🖼️",JPEG:"🖼️",ZIP:"📦",RAR:"📦",MP4:"🎬",MP3:"🎵",TXT:"📃",PY:"🐍",JS:"📜",TS:"📜",HTML:"🌐",CSS:"🎨"})[t] || "📎";
+  const tC = t => ({PDF:"#e63946",DOCX:"#2b579a",DOC:"#2b579a",XLSX:"#217346",XLS:"#217346",PPTX:"#d24726",PNG:"#f77f00",JPG:"#f77f00",JPEG:"#f77f00",ZIP:"#f4a261",RAR:"#f4a261"})[t] || "var(--slate)";
 
   const subir = async (files, materiaId, carpetaId = null) => {
+    const arr = Array.from(files);
+    setUpFiles(arr.map(f => ({ name: f.name, pct: 0, done: false, err: null })));
     setUploading(true);
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      setUploadProgress(`Subiendo ${f.name}... (${i + 1}/${files.length})`);
+    for (let i = 0; i < arr.length; i++) {
+      const f = arr[i];
+      const upd = p => setUpFiles(prev => prev.map((x, j) => j === i ? { ...x, ...p } : x));
+      upd({ pct: 20 });
       try {
         const ext = f.name.split(".").pop().toUpperCase();
         const path = `${userId}/${Date.now()}_${f.name}`;
-        const formData = new FormData();
-        formData.append("file", f);
-        formData.append("path", path);
-
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const fd = new FormData(); fd.append("file", f); fd.append("path", path);
+        upd({ pct: 50 });
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
         const { url, error } = await res.json();
         if (error) throw new Error(error);
-
-        await sb.from("archivos").insert({
-          user_id: userId, materia_id: materiaId, carpeta_id: carpetaId,
-          nombre: f.name, tipo: ext, tamaño: f.size, storage_path: path, url
-        });
-      } catch (e) { showToast(`Error: ${e.message}`); }
+        upd({ pct: 80 });
+        await sb.from("archivos").insert({ user_id: userId, materia_id: materiaId, carpeta_id: carpetaId, nombre: f.name, tipo: ext, tamaño: f.size, storage_path: path, url });
+        upd({ pct: 100, done: true });
+      } catch (e) { upd({ err: e.message, pct: 100, done: true }); showToast(`Error: ${e.message}`); }
     }
-    setUploadProgress("");
-    setUploading(false);
-    onRefresh();
+    setTimeout(() => { setUpFiles([]); setUploading(false); onRefresh(); }, 1800);
   };
 
   const eliminar = async (a) => {
@@ -1686,62 +1699,15 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
     } catch (e) { showToast(e.message); }
   };
 
-  const SubirBtn = ({ materiaId, carpetaId = null }) => (
-    <label className="btn-primary" style={{ cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.7 : 1, fontSize: 13, padding: "8px 16px" }}>
-      <Icon name="plus" size={14} color="#fff" />
-      {uploading ? "Subiendo..." : "Subir Archivo"}
-      <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
-    </label>
-  );
-
-  const ArchivoCard = ({ a }) => (
-    <div className="card fade-in" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ width: 40, height: 40, background: `${tC(a.tipo)}15`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 800, color: tC(a.tipo) }}>{a.tipo}</span>
-        </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          <button className="btn-ghost" style={{ padding: 5 }} title="Preguntar a IA" onClick={() => onAskIA(a)}><Icon name="asistente" size={14} color="var(--blue)" /></button>
-          <button className="btn-ghost" style={{ padding: 5 }} onClick={() => descargar(a)}><Icon name="chevronR" size={14} /></button>
-        </div>
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre}</div>
-      <button className="btn-danger" style={{ padding: "4px 8px", background: "transparent" }} onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={12} color="var(--red)" /></button>
-    </div>
-  );
-
-  const ArchivoRow = ({ a }) => (
-    <div className="card" style={{ padding: 12, display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{ width: 32, height: 32, background: `${tC(a.tipo)}15`, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <span style={{ fontSize: 9, fontWeight: 800, color: tC(a.tipo) }}>{a.tipo}</span>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
-        <div style={{ fontSize: 10, color: "var(--text3)" }}>{fT(a.tamaño)}</div>
-      </div>
-      <button className="btn-ghost" style={{ padding: 5 }} title="Preguntar a IA" onClick={() => onAskIA(a)}><Icon name="asistente" size={14} color="var(--blue)" /></button>
-      <button className="btn-ghost" onClick={() => descargar(a)}><Icon name="chevronR" size={14} /></button>
-      <button className="btn-danger" onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={14} /></button>
-    </div>
-  );
-
-  const DropZone = ({ materiaId, carpetaId = null }) => (
-    <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-      onDrop={e => { e.preventDefault(); setDrag(false); subir(e.dataTransfer.files, materiaId, carpetaId); }}
-      style={{ border: `2px dashed ${drag ? "var(--blue)" : "var(--border)"}`, borderRadius: 8, padding: 16, textAlign: "center", background: drag ? "var(--blue-dim)" : "transparent", color: "var(--text2)", fontSize: 12, transition: "all 0.2s" }}>
-      {drag ? "Soltá acá" : "O arrastrá archivos aquí"}
-    </div>
-  );
 
   const crearCarpeta = async () => {
-    if (!nombreCarpeta.trim() || !nav?.id) return;
-    const { error } = await sb.from("carpetas").insert({ user_id: userId, nombre: nombreCarpeta.trim(), materia_id: nav.id });
+    if (!folderName.trim() || !nav?.id) return;
+    const { error } = await sb.from("carpetas").insert({ user_id: userId, nombre: folderName.trim(), materia_id: nav.id });
     if (error) { showToast(error.message); return; }
-    setNombreCarpeta(""); setNuevaCarpeta(false);
-    onRefresh();
+    setFolderName(""); setNewFolder(false); onRefresh();
   };
 
-  const eliminarCarpeta = async (c) => {
+  const eliminarCarpeta = async c => {
     await sb.from("archivos").update({ carpeta_id: null }).eq("carpeta_id", c.id);
     const { error } = await sb.from("carpetas").delete().eq("id", c.id);
     if (error) { showToast(error.message); return; }
@@ -1749,32 +1715,179 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
     onRefresh();
   };
 
-  if (loading) return <Spinner />;
+  const renombrarCarpeta = async c => {
+    if (!renameVal.trim()) { setRenamingId(null); return; }
+    const { error } = await sb.from("carpetas").update({ nombre: renameVal.trim() }).eq("id", c.id);
+    if (error) { showToast(error.message); return; }
+    setRenamingId(null); onRefresh();
+  };
+
+  const moverArchivo = async (a, cid) => {
+    const { error } = await sb.from("archivos").update({ carpeta_id: cid === "null" ? null : cid }).eq("id", a.id);
+    if (error) { showToast(error.message); return; }
+    setMoving(null); onRefresh();
+  };
+
+  const togglePublico = async a => {
+    const { error } = await sb.from("archivos").update({ es_publico: !a.es_publico }).eq("id", a.id);
+    if (error) { showToast(error.message); return; }
+    onRefresh();
+  };
+
+  // Panel progreso upload flotante
+  const UpPanel = () => upFiles.length === 0 ? null : (
+    <div style={{ position: "fixed", bottom: 80, right: 20, zIndex: 100, background: "var(--surface)", border: "1px solid var(--border2)", borderRadius: 12, padding: 16, width: 290, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name="upload" size={13} color="var(--blue)" />
+        {upFiles.filter(f => f.done).length}/{upFiles.length} archivos subidos
+      </div>
+      {upFiles.map((f, i) => (
+        <div key={i} style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 210 }}>{f.name}</span>
+            <span style={{ color: f.err ? "var(--red)" : f.done ? "var(--green)" : "var(--blue)", flexShrink: 0, marginLeft: 6 }}>{f.err ? "✗" : f.done ? "✓" : `${f.pct}%`}</span>
+          </div>
+          <div style={{ height: 3, background: "var(--surface3)", borderRadius: 2 }}>
+            <div style={{ height: "100%", width: `${f.pct}%`, background: f.err ? "var(--red)" : f.done ? "var(--green)" : "var(--blue)", borderRadius: 2, transition: "width 0.3s" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const SubirBtn = ({ materiaId, carpetaId = null }) => (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--blue)", color: "#fff", borderRadius: "var(--radius)", padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.6 : 1 }}>
+      <Icon name="upload" size={14} color="#fff" />
+      {uploading ? "Subiendo..." : "Subir archivo"}
+      <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
+    </label>
+  );
+
+  const DropZone = ({ materiaId, carpetaId = null }) => (
+    <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); subir(e.dataTransfer.files, materiaId, carpetaId); }}
+      style={{ border: `2px dashed ${drag ? "var(--blue)" : "var(--border2)"}`, borderRadius: 12, padding: "28px 20px", textAlign: "center", background: drag ? "var(--blue-dim)" : "var(--surface2)", transition: "all 0.2s" }}>
+      <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: drag ? "var(--blue)" : "var(--text2)" }}>{drag ? "¡Soltá acá!" : "Arrastrá archivos aquí"}</div>
+      <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>o usá el botón "Subir archivo"</div>
+    </div>
+  );
+
+  const VT = () => (
+    <div style={{ display: "flex", gap: 2, background: "var(--surface3)", borderRadius: 6, padding: 2 }}>
+      {[["list", "list"], ["grid", "grid"]].map(([m, ic]) => (
+        <button key={m} onClick={() => sv(m)} style={{ padding: "5px 9px", border: "none", borderRadius: 5, cursor: "pointer", background: view === m ? "var(--surface)" : "transparent", color: view === m ? "var(--blue)" : "var(--text3)", transition: "all 0.15s" }}>
+          <Icon name={ic} size={15} color="currentColor" />
+        </button>
+      ))}
+    </div>
+  );
+
+  const ARow = ({ a, carpetasDisp = [] }) => (
+    <div className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ width: 36, height: 36, background: `${tC(a.tipo)}18`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>{fEmoji(a.tipo)}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
+        <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1, display: "flex", gap: 8 }}>
+          <span>{fT(a.tamaño)}</span><span>{fD(a.created_at)}</span>
+          {a.es_publico && <span style={{ color: "var(--green)" }}>🌐 Público</span>}
+        </div>
+      </div>
+      {moving?.id === a.id ? (
+        <select style={{ fontSize: 12, padding: "4px 8px" }} onChange={e => moverArchivo(a, e.target.value)} defaultValue="">
+          <option value="">Mover a...</option>
+          <option value="null">📄 Sin carpeta</option>
+          {carpetasDisp.map(c => <option key={c.id} value={c.id}>📁 {c.nombre}</option>)}
+        </select>
+      ) : (
+        <>
+          {isMain && <button className="btn-ghost" style={{ padding: 5 }} title="Mover" onClick={() => setMoving(a)}><Icon name="move" size={13} /></button>}
+          {isMain && <button className="btn-ghost" style={{ padding: 5, color: a.es_publico ? "var(--green)" : "var(--text3)" }} title="Compartir" onClick={() => togglePublico(a)}><Icon name="globe" size={13} /></button>}
+          <button className="btn-ghost" style={{ padding: 5 }} title="Preguntar a IA" onClick={() => onAskIA(a)}><Icon name="asistente" size={13} color="var(--blue)" /></button>
+          <button className="btn-ghost" style={{ padding: 5 }} title="Abrir" onClick={() => descargar(a)}><Icon name="download" size={13} /></button>
+          <button className="btn-danger" style={{ padding: "4px 6px" }} onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={12} /></button>
+        </>
+      )}
+    </div>
+  );
+
+  const ACard = ({ a }) => (
+    <div className="card fade-in" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ width: 44, height: 44, background: `${tC(a.tipo)}18`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{fEmoji(a.tipo)}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {isMain && <button className="btn-ghost" style={{ padding: 4, color: a.es_publico ? "var(--green)" : "var(--text3)" }} onClick={() => togglePublico(a)}><Icon name="globe" size={13} /></button>}
+          <button className="btn-ghost" style={{ padding: 4 }} onClick={() => onAskIA(a)}><Icon name="asistente" size={13} color="var(--blue)" /></button>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{a.nombre}</div>
+      <div style={{ fontSize: 10, color: "var(--text3)", display: "flex", justifyContent: "space-between" }}>
+        <span>{fT(a.tamaño)}</span><span>{fD(a.created_at)}</span>
+      </div>
+      <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+        <button className="btn-ghost" style={{ flex: 1, justifyContent: "center", fontSize: 11, padding: "5px" }} onClick={() => descargar(a)}>Abrir</button>
+        <button className="btn-danger" style={{ padding: "5px 8px" }} onClick={() => setConfirm({ archivo: a, nombre: a.nombre })}><Icon name="trash" size={12} /></button>
+      </div>
+    </div>
+  );
+
+  const CarpetaCard = ({ c, materiaId }) => {
+    const cnt = archivos.filter(a => a.carpeta_id === c.id).length;
+    return (
+      <div className="card" style={{ cursor: "pointer", transition: "border-color 0.15s" }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
+        onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+        <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }} onClick={() => setNav({ tipo: "carpeta", id: c.id, materiaId })}>
+          <div style={{ fontSize: 24 }}>📁</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {renamingId === c.id ? (
+              <input autoFocus style={{ width: "100%", fontSize: 13, padding: "2px 6px" }} value={renameVal}
+                onChange={e => setRenameVal(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") renombrarCarpeta(c); if (e.key === "Escape") setRenamingId(null); }}
+                onBlur={() => renombrarCarpeta(c)} onClick={e => e.stopPropagation()} />
+            ) : (
+              <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre}</div>
+            )}
+            <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{cnt} archivo{cnt !== 1 ? "s" : ""}{c.es_publico ? " · 🌐 Público" : ""}</div>
+          </div>
+          <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+            <button className="btn-ghost" style={{ padding: "4px 6px" }} title="Renombrar" onClick={() => { setRenamingId(c.id); setRenameVal(c.nombre); }}><Icon name="edit" size={12} /></button>
+            {isMain && <button className="btn-ghost" style={{ padding: "4px 6px", color: c.es_publico ? "var(--green)" : "var(--text3)" }} onClick={async () => { const { error } = await sb.from("carpetas").update({ es_publico: !c.es_publico }).eq("id", c.id); if (!error) onRefresh(); }}><Icon name="globe" size={12} /></button>}
+            <button className="btn-danger" style={{ padding: "4px 6px" }} onClick={() => setConfirmC(c)}><Icon name="trash" size={12} /></button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
 
   // VISTA CARPETA
   if (nav?.tipo === "carpeta") {
     const carpeta = carpetas.find(c => c.id === nav.id);
     const materia = materias.find(m => m.id === nav.materiaId);
-    const archsCarpeta = archivos.filter(a => a.carpeta_id === nav.id);
+    const archs = archivos.filter(a => a.carpeta_id === nav.id);
+    const otherC = carpetas.filter(c => c.materia_id === nav.materiaId && c.id !== nav.id);
     return (
       <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, flexWrap: "wrap" }}>
           <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav(null)}>Archivos</button>
-          <span style={{ opacity: 0.4 }}>&rsaquo;</span>
+          <span style={{ opacity: 0.4 }}>›</span>
           <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav({ tipo: "materia", id: nav.materiaId })}>{materia?.nombre}</button>
-          <span style={{ opacity: 0.4 }}>&rsaquo;</span>
-          <span style={{ fontWeight: 700 }}>{carpeta?.nombre}</span>
+          <span style={{ opacity: 0.4 }}>›</span>
+          <span style={{ fontWeight: 700 }}>📁 {carpeta?.nombre}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: "var(--text2)" }}>{archsCarpeta.length} archivos</span>
-          <SubirBtn materiaId={nav.materiaId} carpetaId={nav.id} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--text2)" }}>{archs.length} archivo{archs.length !== 1 ? "s" : ""}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><VT /><SubirBtn materiaId={nav.materiaId} carpetaId={nav.id} /></div>
         </div>
         <DropZone materiaId={nav.materiaId} carpetaId={nav.id} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {archsCarpeta.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>Carpeta vacía</div>
-            : archsCarpeta.map(a => <ArchivoRow key={a.id} a={a} />)}
-        </div>
+        {view === "grid"
+          ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>{archs.length === 0 ? <div style={{ gridColumn: "1/-1", textAlign: "center", color: "var(--text2)", padding: 24 }}>Carpeta vacía</div> : archs.map(a => <ACard key={a.id} a={a} />)}</div>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{archs.length === 0 ? <div style={{ textAlign: "center", color: "var(--text2)", padding: 24, fontSize: 13 }}>Carpeta vacía — arrastrá archivos o usá el botón</div> : archs.map(a => <ARow key={a.id} a={a} carpetasDisp={otherC} />)}</div>
+        }
         {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { eliminar(confirm.archivo); setConfirm(null); }} />}
+        <UpPanel />
       </div>
     );
   }
@@ -1783,87 +1896,95 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
   if (nav?.tipo === "materia") {
     const materia = materias.find(m => m.id === nav.id);
     const est = ESTADOS[materia?.estado];
-    const carpetasMateria = carpetas.filter(c => c.materia_id === nav.id);
-    const archsDirectos = archivos.filter(a => a.materia_id === nav.id && !a.carpeta_id);
+    const carpetasM = carpetas.filter(c => c.materia_id === nav.id);
+    const archsD = archivos.filter(a => a.materia_id === nav.id && !a.carpeta_id);
     return (
       <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, flexWrap: "wrap" }}>
           <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav(null)}>Archivos</button>
-          <span style={{ opacity: 0.4 }}>&rsaquo;</span>
+          <span style={{ opacity: 0.4 }}>›</span>
           <span style={{ fontWeight: 700 }}>{materia?.nombre}</span>
           {est && <span className="tag" style={{ background: est.bg, color: est.color }}>{est.label}</span>}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => setNuevaCarpeta(true)}>
-            <Icon name="plus" size={12} /> Nueva carpeta
-          </button>
-          <SubirBtn materiaId={nav.id} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => setNewFolder(true)}><Icon name="plus" size={12} /> Nueva carpeta</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><VT /><SubirBtn materiaId={nav.id} /></div>
         </div>
-        {carpetasMateria.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
-            {carpetasMateria.map(c => {
-              const count = archivos.filter(a => a.carpeta_id === c.id).length;
-              return (
-                <div key={c.id} className="card" style={{ padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "border-color 0.15s" }}
-                  onClick={() => setNav({ tipo: "carpeta", id: c.id, materiaId: nav.id })}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"} >
-                  <span style={{ fontSize: 18 }}>📁</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{c.nombre}</div>
-                    <div style={{ fontSize: 10, color: "var(--text3)" }}>{count} archivo{count !== 1 ? "s" : ""}</div>
-                  </div>
-                  <button className="btn-danger" style={{ padding: "3px 6px" }} onClick={e => { e.stopPropagation(); setConfirmCarpeta(c); }}><Icon name="trash" size={11} /></button>
-                </div>
-              );
-            })}
+        {carpetasM.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 }}>
+            {carpetasM.map(c => <CarpetaCard key={c.id} c={c} materiaId={nav.id} />)}
           </div>
         )}
         <DropZone materiaId={nav.id} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {archsDirectos.length === 0 ? <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 12, padding: 10 }}>Sin archivos directos. Subílos aquí o dentro de una carpeta.</div>
-            : archsDirectos.map(a => <ArchivoRow key={a.id} a={a} />)}
-        </div>
-        {nuevaCarpeta && (
-          <Modal title="Nueva Carpeta" onClose={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>
-            <input style={{ width: "100%" }} value={nombreCarpeta} onChange={e => setNombreCarpeta(e.target.value)} onKeyDown={e => e.key === "Enter" && crearCarpeta()} placeholder="Nombre..." />
+        {archsD.length > 0 && <p className="section-title" style={{ marginTop: 4 }}>Archivos sueltos</p>}
+        {view === "grid"
+          ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>{archsD.map(a => <ACard key={a.id} a={a} />)}</div>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{archsD.length === 0 ? <div style={{ textAlign: "center", color: "var(--text3)", fontSize: 12, padding: 10 }}>Sin archivos sueltos. Subí aquí o en una carpeta.</div> : archsD.map(a => <ARow key={a.id} a={a} carpetasDisp={carpetasM} />)}</div>
+        }
+        {newFolder && (
+          <Modal title="Nueva Carpeta" onClose={() => { setNewFolder(false); setFolderName(""); }}>
+            <input style={{ width: "100%" }} value={folderName} onChange={e => setFolderName(e.target.value)} onKeyDown={e => e.key === "Enter" && crearCarpeta()} placeholder="Nombre de la carpeta..." />
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button className="btn-primary" style={{ flex: 1 }} onClick={crearCarpeta}>Crear</button>
-              <button className="btn-ghost" onClick={() => { setNuevaCarpeta(false); setNombreCarpeta(""); }}>Cancelar</button>
+              <button className="btn-ghost" onClick={() => { setNewFolder(false); setFolderName(""); }}>Cancelar</button>
             </div>
           </Modal>
         )}
         {confirm && <ConfirmModal nombre={confirm.nombre} onClose={() => setConfirm(null)} onConfirm={() => { eliminar(confirm.archivo); setConfirm(null); }} />}
-        {confirmCarpeta && <ConfirmModal nombre={`carpeta "${confirmCarpeta.nombre}"`} onClose={() => setConfirmCarpeta(null)} onConfirm={() => { eliminarCarpeta(confirmCarpeta); setConfirmCarpeta(null); }} />}
+        {confirmC && <ConfirmModal nombre={`carpeta "${confirmC.nombre}"`} onClose={() => setConfirmC(null)} onConfirm={() => { eliminarCarpeta(confirmC); setConfirmC(null); }} />}
+        <UpPanel />
       </div>
     );
   }
 
   // VISTA RAÍZ
-  const matsConArchivos = materias.filter(m => archivos.some(a => a.materia_id === m.id) || carpetas.some(c => c.materia_id === m.id));
-  const matsVacias = materias.filter(m => !archivos.some(a => a.materia_id === m.id) && !carpetas.some(c => c.materia_id === m.id));
+  const matsC = materias.filter(m => archivos.some(a => a.materia_id === m.id) || carpetas.some(c => c.materia_id === m.id));
+  const matsV = materias.filter(m => !archivos.some(a => a.materia_id === m.id) && !carpetas.some(c => c.materia_id === m.id));
+  const resBusq = archivos.filter(a => a.nombre.toLowerCase().includes(busq.toLowerCase()));
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div className="card" style={{ padding: 16 }}>
-        <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 800 }}>BIBLIOTECA</h2>
-        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>{archivos.length} archivos en total · Seleccioná una materia para subir archivos</p>
+      <div className="card" style={{ padding: "16px 20px", background: "linear-gradient(135deg,var(--surface),var(--surface2))", display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 44, height: 44, background: "var(--blue-dim)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name="archivos" size={22} color="var(--blue)" />
+        </div>
+        <div>
+          <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>BIBLIOTECA</h2>
+          <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>{archivos.length} archivos · {carpetas.length} carpetas · Seleccioná una materia para subir</p>
+        </div>
       </div>
       <div style={{ position: "relative" }}>
-        <input style={{ width: "100%", paddingLeft: 34 }} placeholder="Buscar archivos..." value={busq} onChange={e => setBusq(e.target.value)} />
+        <input style={{ width: "100%", paddingLeft: 36, fontSize: 13 }} placeholder="Buscar archivos en todas las materias..." value={busq} onChange={e => setBusq(e.target.value)} />
         <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.4 }}><Icon name="dashboard" size={15} /></div>
+        {busq && <button style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 18 }} onClick={() => setBusq("")}>×</button>}
       </div>
       {busq ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-          {archivos.filter(a => a.nombre.toLowerCase().includes(busq.toLowerCase())).map(a => <ArchivoCard key={a.id} a={a} />)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <p className="section-title">{resBusq.length} resultado{resBusq.length !== 1 ? "s" : ""} para "{busq}"</p>
+          {resBusq.length === 0
+            ? <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)" }}>Sin resultados</div>
+            : resBusq.map(a => {
+              const mat = materias.find(m => m.id === a.materia_id);
+              return (
+                <div key={a.id} className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setBusq(""); setNav({ tipo: "materia", id: a.materia_id }); }}>
+                  <div style={{ fontSize: 20 }}>{fEmoji(a.tipo)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
+                    <div style={{ fontSize: 10, color: "var(--text3)" }}>{mat?.nombre} · {fT(a.tamaño)}</div>
+                  </div>
+                  <Icon name="chevronR" size={14} color="var(--text3)" />
+                </div>
+              );
+            })
+          }
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {matsConArchivos.length > 0 && <>
-            <p className="section-title">Mis materias</p>
-            {matsConArchivos.map(m => {
+          {matsC.length > 0 && <>
+            <p className="section-title">Materias con archivos</p>
+            {matsC.map(m => {
               const est = ESTADOS[m.estado];
-              const totalA = archivos.filter(a => a.materia_id === m.id).length;
-              const totalC = carpetas.filter(c => c.materia_id === m.id).length;
+              const tA = archivos.filter(a => a.materia_id === m.id).length;
+              const tC2 = carpetas.filter(c => c.materia_id === m.id).length;
               return (
                 <div key={m.id} className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color 0.15s" }}
                   onClick={() => setNav({ tipo: "materia", id: m.id })}
@@ -1872,7 +1993,7 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
                   <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est?.color, flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{m.nombre}</div>
-                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>{totalA} archivo{totalA !== 1 ? "s" : ""} · {totalC} carpeta{totalC !== 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>{tA} archivo{tA !== 1 ? "s" : ""} · {tC2} carpeta{tC2 !== 1 ? "s" : ""}</div>
                   </div>
                   <span className="tag" style={{ background: est?.bg, color: est?.color }}>{est?.label}</span>
                   <Icon name="chevronR" size={16} color="var(--text3)" />
@@ -1880,9 +2001,9 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
               );
             })}
           </>}
-          {matsVacias.length > 0 && <>
+          {matsV.length > 0 && <>
             <p className="section-title" style={{ marginTop: 4 }}>Sin archivos aún</p>
-            {matsVacias.map(m => (
+            {matsV.map(m => (
               <div key={m.id} className="card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", opacity: 0.5, transition: "opacity 0.15s" }}
                 onClick={() => setNav({ tipo: "materia", id: m.id })}
                 onMouseEnter={e => e.currentTarget.style.opacity = "1"}
@@ -1895,9 +2016,11 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
           {materias.length === 0 && <div className="card" style={{ padding: 28, textAlign: "center", color: "var(--text2)" }}>Agregá materias primero para organizar tus archivos</div>}
         </div>
       )}
+      <UpPanel />
     </div>
   );
 }
+
 
 function VistaChatArchivo({ archivo, onClose, callIA, modelo }) {
   const [msgs, setMsgs] = useState([]);
