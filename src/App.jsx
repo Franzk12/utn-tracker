@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { loadCache, saveCache } from "./offlineCache";
+import { ejecutar } from "./db";
 
 // ─── SUPABASE ────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPA_URL;
@@ -519,14 +520,20 @@ function AuthPage({ onAuth }) {
   const [ok, setOk] = useState(false);
   const submit = async () => {
     setErr(""); setLoading(true);
-    if (modo === "login") {
-      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-      if (error) setErr(error.message); else onAuth();
-    } else {
-      const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { nombre } } });
-      if (error) setErr(error.message); else setOk(true);
+    if (!navigator.onLine) { setErr("Necesitás conexión a internet para iniciar sesión."); setLoading(false); return; }
+    try {
+      if (modo === "login") {
+        const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+        if (error) setErr(error.message); else onAuth();
+      } else {
+        const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { nombre } } });
+        if (error) setErr(error.message); else setOk(true);
+      }
+    } catch {
+      setErr("No se pudo conectar. Revisá tu internet e intentá de nuevo.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -1743,6 +1750,7 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
   const tC = t => ({PDF:"#e63946",DOCX:"#2b579a",DOC:"#2b579a",XLSX:"#217346",XLS:"#217346",PPTX:"#d24726",PNG:"#f77f00",JPG:"#f77f00",JPEG:"#f77f00",ZIP:"#f4a261",RAR:"#f4a261"})[t] || "var(--slate)";
 
   const subir = async (files, materiaId, carpetaId = null) => {
+    if (!navigator.onLine) { showToast("Necesitás conexión a internet para subir archivos."); return; }
     const arr = Array.from(files);
     setUpFiles(arr.map(f => ({ name: f.name, pct: 0, done: false, err: null })));
     setUploading(true);
@@ -1766,15 +1774,16 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
         if (data.error) throw new Error(data.error);
         if (!res.ok) throw new Error(data.message || "Error al subir");
         upd({ pct: 80 });
-        await sb.from("archivos").insert({ 
-          user_id: userId, 
-          materia_id: materiaId, 
-          carpeta_id: carpetaId, 
-          nombre: f.name, 
-          tipo: ext, 
-          tamaño: f.size, 
-          storage_path: data.key 
-        });
+        const { error: insErr } = await ejecutar(sb.from("archivos").insert({
+          user_id: userId,
+          materia_id: materiaId,
+          carpeta_id: carpetaId,
+          nombre: f.name,
+          tipo: ext,
+          tamaño: f.size,
+          storage_path: data.key
+        }));
+        if (insErr) throw new Error(insErr);
         upd({ pct: 100, done: true });
       } catch (e) { upd({ err: e.message, pct: 100, done: true }); showToast(`Error: ${e.message}`); }
     }
@@ -1785,8 +1794,8 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
     if (a.storage_path) {
       await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`, { method: "DELETE" });
     }
-    const { error } = await sb.from("archivos").delete().eq("id", a.id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("archivos").delete().eq("id", a.id));
+    if (error) { showToast(error); return; }
     onRefresh();
   };
 
@@ -1802,35 +1811,36 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
 
   const crearCarpeta = async () => {
     if (!folderName.trim() || !nav?.id) return;
-    const { error } = await sb.from("carpetas").insert({ user_id: userId, nombre: folderName.trim(), materia_id: nav.id });
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("carpetas").insert({ user_id: userId, nombre: folderName.trim(), materia_id: nav.id }));
+    if (error) { showToast(error); return; }
     setFolderName(""); setNewFolder(false); onRefresh();
   };
 
   const eliminarCarpeta = async c => {
-    await sb.from("archivos").update({ carpeta_id: null }).eq("carpeta_id", c.id);
-    const { error } = await sb.from("carpetas").delete().eq("id", c.id);
-    if (error) { showToast(error.message); return; }
+    const { error: e1 } = await ejecutar(sb.from("archivos").update({ carpeta_id: null }).eq("carpeta_id", c.id));
+    if (e1) { showToast(e1); return; }
+    const { error } = await ejecutar(sb.from("carpetas").delete().eq("id", c.id));
+    if (error) { showToast(error); return; }
     if (nav?.id === c.id) setNav({ tipo: "materia", id: c.materia_id });
     onRefresh();
   };
 
   const renombrarCarpeta = async c => {
     if (!renameVal.trim()) { setRenamingId(null); return; }
-    const { error } = await sb.from("carpetas").update({ nombre: renameVal.trim() }).eq("id", c.id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("carpetas").update({ nombre: renameVal.trim() }).eq("id", c.id));
+    if (error) { showToast(error); return; }
     setRenamingId(null); onRefresh();
   };
 
   const moverArchivo = async (a, cid) => {
-    const { error } = await sb.from("archivos").update({ carpeta_id: cid === "null" ? null : cid }).eq("id", a.id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("archivos").update({ carpeta_id: cid === "null" ? null : cid }).eq("id", a.id));
+    if (error) { showToast(error); return; }
     setMoving(null); onRefresh();
   };
 
   const togglePublico = async a => {
-    const { error } = await sb.from("archivos").update({ es_publico: !a.es_publico }).eq("id", a.id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("archivos").update({ es_publico: !a.es_publico }).eq("id", a.id));
+    if (error) { showToast(error); return; }
     onRefresh();
   };
 
@@ -1952,7 +1962,7 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
           </div>
           <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
             <button className="btn-ghost" style={{ padding: "4px 6px" }} title="Renombrar" onClick={() => { setRenamingId(c.id); setRenameVal(c.nombre); }}><Icon name="edit" size={12} /></button>
-            {isMain && <button className="btn-ghost" style={{ padding: "4px 6px", color: c.es_publico ? "var(--green)" : "var(--text3)" }} onClick={async () => { const { error } = await sb.from("carpetas").update({ es_publico: !c.es_publico }).eq("id", c.id); if (!error) onRefresh(); }}><Icon name="globe" size={12} /></button>}
+            {isMain && <button className="btn-ghost" style={{ padding: "4px 6px", color: c.es_publico ? "var(--green)" : "var(--text3)" }} onClick={async () => { const { error } = await ejecutar(sb.from("carpetas").update({ es_publico: !c.es_publico }).eq("id", c.id)); if (!error) onRefresh(); }}><Icon name="globe" size={12} /></button>}
             <button className="btn-danger" style={{ padding: "4px 6px" }} onClick={() => setConfirmC(c)}><Icon name="trash" size={12} /></button>
           </div>
         </div>
@@ -2572,53 +2582,53 @@ export default function App() {
   const addMateria = async (f) => {
     const payload = { ...f, user_id: session.user.id };
     if (payload.nota === "") payload.nota = null;
-    const { data, error } = await sb.from("materias").insert(payload).select().single();
-    if (error) { showToast(error.message); return; }
+    const { data, error } = await ejecutar(sb.from("materias").insert(payload).select().single());
+    if (error) { showToast(error); return; }
     setMaterias(m => [...m, data]);
   };
   const editMateria = async (id, f) => {
     const payload = { ...f };
     if (payload.nota === "") payload.nota = null;
-    const { data, error } = await sb.from("materias").update(payload).eq("id", id).select().single();
-    if (error) { showToast(error.message); return; }
+    const { data, error } = await ejecutar(sb.from("materias").update(payload).eq("id", id).select().single());
+    if (error) { showToast(error); return; }
     setMaterias(m => m.map(x => x.id === id ? data : x));
   };
   const delMateria = async (id) => {
-    const { error } = await sb.from("materias").delete().eq("id", id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("materias").delete().eq("id", id));
+    if (error) { showToast(error); return; }
     setMaterias(m => m.filter(x => x.id !== id));
   };
   const addEvento = async (f) => {
-    const { data, error } = await sb.from("eventos").insert({ ...f, user_id: session.user.id }).select().single();
-    if (error) { showToast(error.message); return; }
+    const { data, error } = await ejecutar(sb.from("eventos").insert({ ...f, user_id: session.user.id }).select().single());
+    if (error) { showToast(error); return; }
     setEventos(e => [...e, data]);
   };
   const editEvento = async (id, f) => {
-    const { data, error } = await sb.from("eventos").update(f).eq("id", id).select().single();
-    if (error) { showToast(error.message); return; }
+    const { data, error } = await ejecutar(sb.from("eventos").update(f).eq("id", id).select().single());
+    if (error) { showToast(error); return; }
     setEventos(e => e.map(x => x.id === id ? data : x));
   };
   const delEvento = async (id) => {
-    const { error } = await sb.from("eventos").delete().eq("id", id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("eventos").delete().eq("id", id));
+    if (error) { showToast(error); return; }
     setEventos(e => e.filter(x => x.id !== id));
   };
 
   const onAddTarea = async (f) => {
-    const { data, error } = await sb.from("tareas").insert({ ...f, user_id: session.user.id }).select().single();
-    if (error) { showToast(error.message); return; }
+    const { data, error } = await ejecutar(sb.from("tareas").insert({ ...f, user_id: session.user.id }).select().single());
+    if (error) { showToast(error); return; }
     setTareas(t => [...t, data]);
   };
 
   const onToggleTarea = async (id, completada) => {
-    const { data, error } = await sb.from("tareas").update({ completada }).eq("id", id).select().single();
-    if (error) { showToast(error.message); return; }
+    const { data, error } = await ejecutar(sb.from("tareas").update({ completada }).eq("id", id).select().single());
+    if (error) { showToast(error); return; }
     setTareas(t => t.map(x => x.id === id ? data : x));
   };
 
   const onDeleteTarea = async (id) => {
-    const { error } = await sb.from("tareas").delete().eq("id", id);
-    if (error) { showToast(error.message); return; }
+    const { error } = await ejecutar(sb.from("tareas").delete().eq("id", id));
+    if (error) { showToast(error); return; }
     setTareas(t => t.filter(x => x.id !== id));
   };
 
