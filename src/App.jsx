@@ -235,7 +235,7 @@ export default function App() {
             <div style={{ fontSize: 11, color: "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 6 }}>{session.user.email}</div>
             <button className="btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12, padding: "6px" }} onClick={() => sb.auth.signOut()}><Icon name="logout" size={13} />Cerrar sesión</button>
           </div>}
-          <button onClick={() => setSideOpen(o => !o)} style={{ margin: "9px 6px", padding: "9px", border: "1px solid var(--border)", borderRadius: 6, background: "transparent", color: "var(--text2)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
+          <button aria-label="Contraer o expandir el menú" onClick={() => setSideOpen(o => !o)} style={{ margin: "9px 6px", padding: "9px", border: "1px solid var(--border)", borderRadius: 6, background: "transparent", color: "var(--text2)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}>
             <Icon name={sideOpen ? "chevronL" : "chevronR"} size={14} />
@@ -248,7 +248,7 @@ export default function App() {
               <h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 800, letterSpacing: 0.3 }}>{TITULOS[vista]}</h1>
             </div>
             {pushEstado !== "no-soportado" && (
-              <button onClick={() => setShowPushConfig(true)}
+              <button aria-label="Configurar notificaciones" onClick={() => setShowPushConfig(true)}
                 style={{
                   background: pushEstado === "activo" ? "var(--blue-dim)" : "var(--surface2)",
                   border: `1px solid ${pushEstado === "activo" ? "var(--blue)" : pushEstado === "denegado" ? "var(--border)" : "var(--border)"}`,
@@ -314,7 +314,7 @@ export default function App() {
           <div className="card fade-in" style={{ width: "100%", maxWidth: 380, padding: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 17, fontWeight: 700 }}>Notificaciones push</span>
-              <button onClick={() => setShowPushConfig(false)} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 20, cursor: "pointer" }}>×</button>
+              <button aria-label="Cerrar" onClick={() => setShowPushConfig(false)} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 20, cursor: "pointer" }}>×</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {pushEstado === "no-soportado" && (

@@ -1466,8 +1466,8 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ width: 44, height: 44, background: `${tC(a.tipo)}18`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>{fBadge(a.tipo, 11)}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {isMain && <button className="btn-ghost" style={{ padding: 4, color: a.es_publico ? "var(--green)" : "var(--text3)" }} onClick={() => togglePublico(a)}><Icon name="globe" size={13} /></button>}
-          <button className="btn-ghost" style={{ padding: 4 }} onClick={() => onAskIA(a)}><Icon name="asistente" size={13} color="var(--blue)" /></button>
+          {isMain && <button aria-label="Compartir" title="Compartir" className="btn-ghost" style={{ padding: 4, color: a.es_publico ? "var(--green)" : "var(--text3)" }} onClick={() => togglePublico(a)}><Icon name="globe" size={13} /></button>}
+          <button aria-label="Preguntar a IA" title="Preguntar a IA" className="btn-ghost" style={{ padding: 4 }} onClick={() => onAskIA(a)}><Icon name="asistente" size={13} color="var(--blue)" /></button>
         </div>
       </div>
       <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{a.nombre}</div>
@@ -1739,7 +1739,7 @@ export function VistaChatArchivo({ archivo, onClose, callIA, modelo }) {
         </div>
         <div style={{ display: "flex", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
           <input style={{ flex: 1 }} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && enviar()} placeholder="Escribí una pregunta..." disabled={reading} />
-          <button className="btn-primary" onClick={enviar} disabled={loading || reading}><Icon name="send" size={16} color="#fff" /></button>
+          <button aria-label="Enviar" className="btn-primary" onClick={enviar} disabled={loading || reading}><Icon name="send" size={16} color="#fff" /></button>
         </div>
       </div>
     </Modal>
@@ -1915,7 +1915,7 @@ export function VistaAsistente({ materias, eventos }) {
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} placeholder="Escribí tu mensaje... (Enter para enviar)" rows={2} style={{ flex: 1, resize: "none", borderRadius: 8, lineHeight: 1.5, fontSize: 13, padding: "10px 12px" }} />
-        <button className="btn-primary" onClick={enviar} disabled={loading || !input.trim()} style={{ padding: "10px 14px", opacity: loading || !input.trim() ? 0.5 : 1 }}><Icon name="send" size={15} color="#fff" /></button>
+        <button aria-label="Enviar mensaje" className="btn-primary" onClick={enviar} disabled={loading || !input.trim()} style={{ padding: "10px 14px", opacity: loading || !input.trim() ? 0.5 : 1 }}><Icon name="send" size={15} color="#fff" /></button>
       </div>
     </div>
   );
