@@ -18,7 +18,7 @@ const ESTADOS = {
   pendiente: { label: "Pendiente", color: "#475569", bg: "rgba(71,85,105,0.15)" },
 };
 const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const HORAS = ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30"];
+const HORAS = ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00"];
 const TIPO_EVENTO = {
   parcial: { label: "Parcial", color: "#60a5fa" },
   final: { label: "Final", color: "#f87171" },
@@ -868,11 +868,18 @@ function FormMateria({ initial, onSave, onClose }) {
       delete nuevosHorarios[d];
       setF(p => ({ ...p, dias: nuevosDias, horarios: nuevosHorarios }));
     } else {
-      setF(p => ({ ...p, dias: [...diasActuales, d], horarios: { ...p.horarios, [d]: HORAS[4] } }));
+      setF(p => ({ ...p, dias: [...diasActuales, d], horarios: { ...p.horarios, [d]: "14:00-16:00" } }));
     }
   };
 
-  const setHorarioDia = (dia, hora) => setF(p => ({ ...p, horarios: { ...p.horarios, [dia]: hora } }));
+  const setHorarioRango = (dia, tipo, val) => {
+    setF(p => {
+      const actual = p.horarios?.[dia] || "14:00-16:00";
+      const [start = "14:00", end = "16:00"] = actual.split("-");
+      const nuevo = tipo === "start" ? `${val}-${end}` : `${start}-${val}`;
+      return { ...p, horarios: { ...p.horarios, [dia]: nuevo } };
+    });
+  };
 
   const nN = ["aprobada_final", "promocionada", "regular"].includes(f.estado);
 
@@ -924,15 +931,24 @@ function FormMateria({ initial, onSave, onClose }) {
         {/* Selector de hora por día seleccionado */}
         {f.dias?.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {f.dias.map(d => (
-              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 7, padding: "8px 12px" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--blue)", minWidth: 80 }}>{d}</span>
-                <select value={f.horarios?.[d] || HORAS[4]} onChange={e => setHorarioDia(d, e.target.value)}
-                  style={{ flex: 1, fontSize: 12, padding: "5px 8px" }}>
-                  {HORAS.map(h => <option key={h}>{h}</option>)}
-                </select>
-              </div>
-            ))}
+            {f.dias.map(d => {
+              const str = f.horarios?.[d] || "14:00-16:00";
+              const [start = "14:00", end = "16:00"] = str.split("-");
+              return (
+                <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface2)", borderRadius: 7, padding: "8px 12px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--blue)", minWidth: 60 }}>{d}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                    <select value={start} onChange={e => setHorarioRango(d, "start", e.target.value)} style={{ flex: 1, fontSize: 12, padding: "5px 8px", minWidth: 70 }}>
+                      {HORAS.map(h => <option key={h}>{h}</option>)}
+                    </select>
+                    <span style={{ color: "var(--text3)", fontSize: 12 }}>a</span>
+                    <select value={end} onChange={e => setHorarioRango(d, "end", e.target.value)} style={{ flex: 1, fontSize: 12, padding: "5px 8px", minWidth: 70 }}>
+                      {HORAS.map(h => <option key={h}>{h}</option>)}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1035,78 +1051,101 @@ function VistaHorarios({ materias }) {
   const [vistaGrid, setVistaGrid] = useState(false);
 
   const entradas = cur.flatMap(m =>
-    (m.dias || []).map(dia => ({
-      materia: m, dia,
-      hora: m.horarios?.[dia] || m.horario || "12:00"
-    }))
+    (m.dias || []).map(dia => {
+      const str = m.horarios?.[dia] || m.horario || "12:00";
+      const [start, end] = str.includes("-") ? str.split("-") : [str, null];
+      return { materia: m, dia, hora: start, horaFin: end };
+    })
   ).sort((a, b) => a.hora.localeCompare(b.hora));
 
-  // Vista por día (default) — más legible en cel y desktop
+  // Vista por día (default)
   const porDia = DIAS_SEMANA.map(dia => ({
     dia,
     clases: entradas.filter(e => e.dia === dia).sort((a, b) => a.hora.localeCompare(b.hora))
   })).filter(d => d.clases.length > 0);
 
   // Vista grilla
-  const horasConClases = [...new Set(entradas.map(e => e.hora))].sort();
-  const horasAMostrar = horasConClases.length > 0 ? HORAS.filter(h => {
+  const getSlotIdx = (t) => {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    return h * 2 + (m === 30 ? 1 : 0);
+  };
+  const tiempos = [...new Set(entradas.flatMap(e => [e.hora, e.horaFin]).filter(Boolean))].sort();
+  const horasAMostrar = tiempos.length > 0 ? HORAS.filter(h => {
     const idx = HORAS.indexOf(h);
-    const indices = horasConClases.map(x => HORAS.indexOf(x)).filter(x => x >= 0);
+    const indices = tiempos.map(x => HORAS.indexOf(x)).filter(x => x >= 0);
     if (!indices.length) return false;
     const min = Math.max(0, Math.min(...indices) - 1);
-    const max = Math.min(HORAS.length - 1, Math.max(...indices) + 1);
+    const max = Math.min(HORAS.length - 1, Math.max(...indices)); 
     return idx >= min && idx <= max;
   }) : HORAS;
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      
+      {/* HEADER PREMIUM */}
+      <div className="card" style={{ padding: "16px 20px", background: "linear-gradient(135deg,var(--surface),var(--surface2))", display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 44, height: 44, background: "var(--blue-dim)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name="horarios" size={22} color="var(--blue)" />
+        </div>
+        <div>
+          <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>HORARIO SEMANAL</h2>
+          <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>{cur.length} materias cursando · {entradas.length} clases por semana</p>
+        </div>
+      </div>
 
       {/* Toggle de vista */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <p style={{ fontSize: 13, color: "var(--text2)" }}>{cur.length} materia{cur.length !== 1 ? "s" : ""} con horario cargado</p>
-        <div style={{ display: "flex", gap: 1, background: "var(--surface2)", borderRadius: 7, padding: 3 }}>
-          {[{ id: false, label: "Por día" }, { id: true, label: "Grilla" }].map(v => (
+        <p className="section-title" style={{ margin: 0 }}>Mi agenda de clases</p>
+        <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 8, padding: 4, width: "fit-content" }}>
+          {[{ id: false, label: "Por día", icon: "list" }, { id: true, label: "Grilla", icon: "grid" }].map(v => (
             <button key={String(v.id)} onClick={() => setVistaGrid(v.id)} style={{
-              padding: "5px 14px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 500,
-              background: vistaGrid === v.id ? "var(--blue)" : "transparent",
-              color: vistaGrid === v.id ? "#fff" : "var(--text2)", transition: "all 0.15s"
-            }}>{v.label}</button>
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 14px", borderRadius: 6, border: "none", fontSize: 12, fontWeight: 600,
+              background: vistaGrid === v.id ? "var(--surface)" : "transparent",
+              color: vistaGrid === v.id ? "var(--blue)" : "var(--text2)", transition: "all 0.15s",
+              boxShadow: vistaGrid === v.id ? "0 2px 8px rgba(0,0,0,0.2)" : "none"
+            }}><Icon name={v.icon} size={14} />{v.label}</button>
           ))}
         </div>
       </div>
 
       {cur.length === 0 && (
-        <div className="card" style={{ padding: 28, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>
-          No hay materias con horario cargado todavía
+        <div className="card" style={{ padding: 32, textAlign: "center", color: "var(--text2)", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="horarios" size={24} /></div>
+          <span style={{ fontSize: 13 }}>No hay materias con horario cargado todavía. Editá tus materias para agregarles días y horarios de cursado.</span>
         </div>
       )}
 
-      {/* ── VISTA POR DÍA ── */}
+      {/* ── VISTA POR DÍA (TIMELINE) ── */}
       {!vistaGrid && cur.length > 0 && (
         porDia.length === 0 ? (
           <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>
             Agregá días a tus materias para ver el horario
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
             {porDia.map(({ dia, clases }) => (
-              <div key={dia} className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 14, fontWeight: 700, letterSpacing: 0.5 }}>{dia}</span>
-                  <span style={{ fontSize: 11, color: "var(--text2)" }}>{clases.length} clase{clases.length !== 1 ? "s" : ""}</span>
+              <div key={dia} className="card" style={{ padding: 0, overflow: "hidden", background: "var(--surface)" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 15, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>{dia}</span>
+                  <span className="tag" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>{clases.length} clase{clases.length !== 1 ? "s" : ""}</span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 16px" }}>
                   {clases.map((e, i) => {
                     const est = ESTADOS[e.materia.estado];
                     return (
-                      <div key={i} style={{ padding: "10px 14px", borderBottom: i < clases.length - 1 ? "1px solid var(--border)" : "none", display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: est.color, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.materia.nombre}</div>
-                          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, display: "flex", gap: 8 }}>
-                            <span style={{ fontFamily: "'DM Mono'", color: "var(--blue)" }}>{e.hora}</span>
-                            {e.materia.aula && <span>Aula {e.materia.aula}</span>}
-                            <span className="tag" style={{ background: est.bg, color: est.color, padding: "0 6px" }}>{est.label}</span>
+                      <div key={i} style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 12, position: "relative", overflow: "hidden", transition: "transform 0.15s", cursor: "default" }} onMouseEnter={ev => ev.currentTarget.style.transform = "translateX(2px)"} onMouseLeave={ev => ev.currentTarget.style.transform = "translateX(0)"}>
+                        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: est.color }} />
+                        <div style={{ background: "var(--surface)", padding: "6px 8px", borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", minWidth: 46, border: "1px solid var(--border)" }}>
+                          <span style={{ fontFamily: "'DM Mono'", fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{e.hora}</span>
+                          {e.horaFin && <span style={{ fontFamily: "'DM Mono'", fontSize: 9, color: "var(--text3)", marginTop: 1 }}>a {e.horaFin}</span>}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, paddingLeft: 2 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.materia.nombre}</div>
+                          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            {e.materia.aula ? <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Icon name="dashboard" size={10} /> Aula {e.materia.aula}</span> : null}
+                            <span className="tag" style={{ background: est.bg, color: est.color, padding: "2px 6px" }}>{est.label}</span>
                           </div>
                         </div>
                       </div>
@@ -1119,48 +1158,93 @@ function VistaHorarios({ materias }) {
         )
       )}
 
-      {/* ── VISTA GRILLA ── */}
+      {/* ── VISTA GRILLA VISUAL ── */}
       {vistaGrid && cur.length > 0 && (
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 600 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "56px repeat(6,1fr)", gap: 2, marginBottom: 2 }}>
+        <div className="card" style={{ overflowX: "auto", background: "var(--surface)", padding: 0 }}>
+          <div style={{ minWidth: 720 }}>
+            {/* Header de días */}
+            <div style={{ display: "grid", gridTemplateColumns: "60px repeat(6,1fr)", borderBottom: "1px solid var(--border)", background: "var(--surface2)" }}>
               <div />
-              {DIAS_SEMANA.map(d => (
-                <div key={d} style={{ background: "var(--surface2)", borderRadius: 5, padding: "7px 0", textAlign: "center", fontFamily: "'Barlow Condensed'", fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "var(--text2)" }}>{d}</div>
+              {DIAS_SEMANA.map((d, i) => (
+                <div key={d} style={{ padding: "12px 0", textAlign: "center", fontFamily: "'Barlow Condensed'", fontSize: 13, fontWeight: 800, letterSpacing: 1, color: "var(--text2)", borderLeft: i === 0 ? "none" : "1px solid var(--border)" }}>{d}</div>
               ))}
             </div>
-            {horasAMostrar.map(hora => {
-              const tieneAlgo = DIAS_SEMANA.some(d => entradas.some(e => e.hora === hora && e.dia === d));
-              return (
-                <div key={hora} style={{ display: "grid", gridTemplateColumns: "56px repeat(6,1fr)", gap: 2, marginBottom: 2 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 7, fontFamily: "'DM Mono'", fontSize: 9, color: tieneAlgo ? "var(--blue)" : "var(--text3)" }}>{hora}</div>
-                  {DIAS_SEMANA.map(dia => {
-                    const entrada = entradas.find(e => e.hora === hora && e.dia === dia);
-                    const m = entrada?.materia;
-                    const est = m ? ESTADOS[m.estado] : null;
-                    return (
-                      <div key={dia} style={{ background: m ? est.bg : "var(--surface)", minHeight: 34, border: `1px solid ${m ? est.color + "44" : "var(--border)"}`, borderRadius: 5, padding: m ? "5px 7px" : "2px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                        {m && <>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: est.color, lineHeight: 1.3 }}>{m.nombre.length > 20 ? m.nombre.slice(0, 20) + "…" : m.nombre}</span>
-                          {m.aula && <span style={{ fontSize: 8, color: "var(--text2)", marginTop: 1 }}>Aula {m.aula}</span>}
-                        </>}
-                      </div>
-                    );
-                  })}
+            
+            {/* Cuerpo de la grilla (Time blocks overlay) */}
+            <div style={{ display: "grid", gridTemplateColumns: "60px repeat(6,1fr)", gridAutoRows: "minmax(34px, auto)", position: "relative" }}>
+              
+              {/* 1) Líneas de fondo y horas */}
+              {horasAMostrar.map((hora, rowIdx) => (
+                <div style={{ display: "contents" }} key={`bg-${hora}`}>
+                  {/* Etiqueta de la hora */}
+                  <div style={{ gridColumn: 1, gridRow: rowIdx + 1, borderBottom: rowIdx === horasAMostrar.length - 1 ? "none" : "1px solid var(--border)", borderRight: "1px solid var(--border)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 8, fontFamily: "'DM Mono'", fontSize: 11, color: "var(--text3)", background: "var(--surface2)", zIndex: 1 }}>
+                    {hora}
+                  </div>
+                  {/* Celdas vacías para formar la grilla */}
+                  {DIAS_SEMANA.map((dia, colIdx) => (
+                    <div key={`cell-${dia}-${hora}`} style={{ gridColumn: colIdx + 2, gridRow: rowIdx + 1, borderBottom: rowIdx === horasAMostrar.length - 1 ? "none" : "1px solid var(--border)", borderRight: colIdx === 5 ? "none" : "1px solid var(--border)", background: "var(--surface)", zIndex: 0 }} />
+                  ))}
                 </div>
-              );
-            })}
+              ))}
+
+              {/* 2) Bloques de materias (Flotando sobre la grilla) */}
+              {entradas.map((e, i) => {
+                const startIdx = horasAMostrar.indexOf(e.hora);
+                if (startIdx === -1) return null;
+
+                let endIdx = e.horaFin ? horasAMostrar.indexOf(e.horaFin) : -1;
+                if (endIdx === -1) {
+                  const diff = (getSlotIdx(e.horaFin || "00:00") - getSlotIdx(e.hora)) || 4; // default 2 hrs
+                  endIdx = startIdx + Math.max(1, diff);
+                }
+
+                const m = e.materia;
+                const est = ESTADOS[m.estado];
+                const col = DIAS_SEMANA.indexOf(e.dia) + 2;
+
+                return (
+                  <div key={`block-${e.dia}-${e.hora}-${i}`} style={{ 
+                    gridColumn: col, 
+                    gridRow: `${startIdx + 1} / ${endIdx + 1}`,
+                    padding: "3px 5px", // Separación de los bordes de la celda
+                    zIndex: 10
+                  }}>
+                    <div className="fade-in" style={{ 
+                      background: est.bg, 
+                      border: `1px solid ${est.color}44`, 
+                      borderRadius: 6, 
+                      padding: "6px 8px", 
+                      height: "100%", 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      gap: 4, 
+                      position: "relative", 
+                      overflow: "hidden",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                      cursor: "default",
+                      transition: "transform 0.15s, border-color 0.15s"
+                    }} onMouseEnter={ev => ev.currentTarget.style.borderColor = est.color} onMouseLeave={ev => ev.currentTarget.style.borderColor = `${est.color}44`}>
+                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: est.color }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", lineHeight: 1.2, marginLeft: 2, display: "-webkit-box", WebkitLineClamp: Math.max(1, Math.floor((endIdx - startIdx) * 1.5)), WebkitBoxOrient: "vertical", overflow: "hidden" }}>{m.nombre}</span>
+                      {(endIdx - startIdx) >= 2 && m.aula && <span style={{ fontSize: 9, color: "var(--text)", background: "rgba(0,0,0,0.25)", padding: "2px 5px", borderRadius: 4, width: "fit-content", marginLeft: 2 }}>Aula {m.aula}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      <div><p className="section-title">Referencias</p>
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-          {Object.entries(ESTADOS).filter(([k]) => ["cursando", "regular"].includes(k)).map(([k, v]) => (
-            <span key={k} className="tag" style={{ background: v.bg, color: v.color }}>{v.label}</span>
-          ))}
+      {cur.length > 0 && (
+        <div style={{ marginTop: 8 }}><p className="section-title">Referencias</p>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            {Object.entries(ESTADOS).filter(([k]) => ["cursando", "regular"].includes(k)).map(([k, v]) => (
+              <span key={k} className="tag" style={{ background: v.bg, color: v.color, padding: "4px 8px" }}>{v.label}</span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1667,14 +1751,29 @@ function VistaArchivos({ materias, archivos, carpetas, userId, showToast, onAskI
       upd({ pct: 20 });
       try {
         const ext = f.name.split(".").pop().toUpperCase();
-        const path = `${userId}/${Date.now()}_${f.name}`;
-        const fd = new FormData(); fd.append("file", f); fd.append("path", path);
         upd({ pct: 50 });
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const { url, error } = await res.json();
-        if (error) throw new Error(error);
+        const res = await fetch("/api/upload", { 
+          method: "POST", 
+          headers: {
+            "x-file-name": encodeURIComponent(f.name),
+            "x-user-id": userId,
+            "content-type": f.type || "application/octet-stream"
+          },
+          body: f 
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.message || "Error al subir");
         upd({ pct: 80 });
-        await sb.from("archivos").insert({ user_id: userId, materia_id: materiaId, carpeta_id: carpetaId, nombre: f.name, tipo: ext, tamaño: f.size, storage_path: path, url });
+        await sb.from("archivos").insert({ 
+          user_id: userId, 
+          materia_id: materiaId, 
+          carpeta_id: carpetaId, 
+          nombre: f.name, 
+          tipo: ext, 
+          tamaño: f.size, 
+          storage_path: data.key 
+        });
         upd({ pct: 100, done: true });
       } catch (e) { upd({ err: e.message, pct: 100, done: true }); showToast(`Error: ${e.message}`); }
     }
@@ -2283,8 +2382,61 @@ const NAV = [
 ];
 const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", asistente: "Asistente IA" };
 
+// ─── TUTORIAL DE ONBOARDING ───────────────────────────────────────────────────
+function TutorialModal({ onClose }) {
+  const [step, setStep] = useState(0);
+  const steps = [
+    {
+      title: "¡Bienvenido a UTN Tracker! 🎓",
+      desc: "Tu nueva libreta universitaria digital. Llevá el control de tus materias, organizá tus apuntes y tené siempre a mano tu horario de cursado.",
+      icon: "🎓"
+    },
+    {
+      title: "1. Carga tus Materias",
+      desc: "Ve a la pestaña 'Materias' y usa la vista de 'Mapa' para importar automáticamente todo tu plan de estudios con un solo clic.",
+      icon: "📋"
+    },
+    {
+      title: "2. Arma tu Horario",
+      desc: "Edita los días y horas de cursado de tus materias para generar automáticamente tu grilla de horarios semanal (como en un calendario).",
+      icon: "📅"
+    },
+    {
+      title: "3. Tu Biblioteca en la Nube",
+      desc: "En 'Archivos' puedes subir tus resúmenes y organizarlos en carpetas. Podés hacerlos públicos para compartirlos con tus compañeros de facultad.",
+      icon: "☁️"
+    }
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="card fade-in" style={{ width: "100%", maxWidth: 420, padding: 32, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>{steps[step].icon}</div>
+        <h2 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Barlow Condensed'", marginBottom: 12 }}>{steps[step].title}</h2>
+        <p style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.5, minHeight: 65 }}>{steps[step].desc}</p>
+        
+        <div style={{ display: "flex", gap: 6, margin: "24px 0" }}>
+          {steps.map((_, i) => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i === step ? "var(--blue)" : "var(--border)", transition: "all 0.3s" }} />
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 12, width: "100%" }}>
+          {step > 0 && <button className="btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setStep(s => s - 1)}>Atrás</button>}
+          {step < steps.length - 1 ? (
+            <button className="btn-primary" style={{ flex: 2, justifyContent: "center" }} onClick={() => setStep(s => s + 1)}>Siguiente</button>
+          ) : (
+            <button className="btn-primary" style={{ flex: 2, justifyContent: "center", background: "var(--green)", color: "#000", border: "none" }} onClick={onClose}>¡Empezar a usar!</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem("utn_tutorial"));
   const isMobile = useIsMobile();
   const [session, setSession] = useState(undefined);
   const [vista, setVista] = useState("dashboard");
@@ -2388,12 +2540,16 @@ export default function App() {
   };
 
   const addMateria = async (f) => {
-    const { data, error } = await sb.from("materias").insert({ ...f, user_id: session.user.id }).select().single();
+    const payload = { ...f, user_id: session.user.id };
+    if (payload.nota === "") payload.nota = null;
+    const { data, error } = await sb.from("materias").insert(payload).select().single();
     if (error) { showToast(error.message); return; }
     setMaterias(m => [...m, data]);
   };
   const editMateria = async (id, f) => {
-    const { data, error } = await sb.from("materias").update({ ...f }).eq("id", id).select().single();
+    const payload = { ...f };
+    if (payload.nota === "") payload.nota = null;
+    const { data, error } = await sb.from("materias").update(payload).eq("id", id).select().single();
     if (error) { showToast(error.message); return; }
     setMaterias(m => m.map(x => x.id === id ? data : x));
   };
@@ -2529,6 +2685,9 @@ export default function App() {
           );
         })}
       </nav>
+
+      {/* MODAL TUTORIAL */}
+      {showTutorial && <TutorialModal onClose={() => { localStorage.setItem("utn_tutorial", "true"); setShowTutorial(false); }} />}
 
       {/* TOASTS */}
       <ToastContainer toasts={toasts} />
