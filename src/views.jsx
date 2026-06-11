@@ -1285,8 +1285,9 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
 
   const fT = b => b > 1e6 ? `${(b/1e6).toFixed(1)}MB` : b > 1e3 ? `${(b/1e3).toFixed(0)}KB` : `${b}B`;
   const fD = d => d ? new Date(d).toLocaleDateString("es-AR", { day:"2-digit", month:"short" }) : "";
-  const fEmoji = t => ({PDF:"📄",DOCX:"📝",DOC:"📝",XLSX:"📊",XLS:"📊",PPTX:"📈",PNG:"🖼️",JPG:"🖼️",JPEG:"🖼️",ZIP:"📦",RAR:"📦",MP4:"🎬",MP3:"🎵",TXT:"📃",PY:"🐍",JS:"📜",TS:"📜",HTML:"🌐",CSS:"🎨"})[t] || "📎";
   const tC = t => ({PDF:"#e63946",DOCX:"#2b579a",DOC:"#2b579a",XLSX:"#217346",XLS:"#217346",PPTX:"#d24726",PNG:"#f77f00",JPG:"#f77f00",JPEG:"#f77f00",ZIP:"#f4a261",RAR:"#f4a261"})[t] || "var(--slate)";
+  // Badge con la extensión en color, en vez de emoji (consistente con el set de íconos SVG)
+  const fBadge = (t, fs = 9.5) => <span className="mono" style={{ fontSize: fs, fontWeight: 700, color: tC(t), letterSpacing: 0.4 }}>{t}</span>;
 
   const subir = async (files, materiaId, carpetaId = null) => {
     if (!navigator.onLine) { showToast("Necesitás conexión a internet para subir archivos."); return; }
@@ -1416,7 +1417,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
     <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
       onDrop={e => { e.preventDefault(); setDrag(false); subir(e.dataTransfer.files, materiaId, carpetaId); }}
       style={{ border: `2px dashed ${drag ? "var(--blue)" : "var(--border2)"}`, borderRadius: 12, padding: "28px 20px", textAlign: "center", background: drag ? "var(--blue-dim)" : "var(--surface2)", transition: "all 0.2s" }}>
-      <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
+      <div style={{ marginBottom: 6, opacity: 0.5 }}><Icon name="folder" size={28} color="var(--text3)" /></div>
       <div style={{ fontSize: 13, fontWeight: 600, color: drag ? "var(--blue)" : "var(--text2)" }}>{drag ? "¡Soltá acá!" : "Arrastrá archivos aquí"}</div>
       <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>o usá el botón "Subir archivo"</div>
     </div>
@@ -1434,19 +1435,19 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
 
   const ARow = ({ a, carpetasDisp = [] }) => (
     <div className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 36, height: 36, background: `${tC(a.tipo)}18`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>{fEmoji(a.tipo)}</div>
+      <div style={{ width: 36, height: 36, background: `${tC(a.tipo)}18`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{fBadge(a.tipo)}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
         <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1, display: "flex", gap: 8 }}>
           <span>{fT(a.tamaño)}</span><span>{fD(a.created_at)}</span>
-          {a.es_publico && <span style={{ color: "var(--green)" }}>🌐 Público</span>}
+          {a.es_publico && <span style={{ color: "var(--green)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="globe" size={11} color="var(--green)" />Público</span>}
         </div>
       </div>
       {moving?.id === a.id ? (
         <select style={{ fontSize: 12, padding: "4px 8px" }} onChange={e => moverArchivo(a, e.target.value)} defaultValue="">
           <option value="">Mover a...</option>
-          <option value="null">📄 Sin carpeta</option>
-          {carpetasDisp.map(c => <option key={c.id} value={c.id}>📁 {c.nombre}</option>)}
+          <option value="null">Sin carpeta</option>
+          {carpetasDisp.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
       ) : (
         <>
@@ -1463,7 +1464,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
   const ACard = ({ a }) => (
     <div className="card fade-in" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ width: 44, height: 44, background: `${tC(a.tipo)}18`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{fEmoji(a.tipo)}</div>
+        <div style={{ width: 44, height: 44, background: `${tC(a.tipo)}18`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>{fBadge(a.tipo, 11)}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {isMain && <button className="btn-ghost" style={{ padding: 4, color: a.es_publico ? "var(--green)" : "var(--text3)" }} onClick={() => togglePublico(a)}><Icon name="globe" size={13} /></button>}
           <button className="btn-ghost" style={{ padding: 4 }} onClick={() => onAskIA(a)}><Icon name="asistente" size={13} color="var(--blue)" /></button>
@@ -1487,7 +1488,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
         onMouseEnter={e => e.currentTarget.style.borderColor = "var(--blue)"}
         onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
         <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }} onClick={() => setNav({ tipo: "carpeta", id: c.id, materiaId })}>
-          <div style={{ fontSize: 24 }}>📁</div>
+          <Icon name="folder" size={24} color="var(--blue)" />
           <div style={{ flex: 1, minWidth: 0 }}>
             {renamingId === c.id ? (
               <input autoFocus style={{ width: "100%", fontSize: 13, padding: "2px 6px" }} value={renameVal}
@@ -1497,7 +1498,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
             ) : (
               <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre}</div>
             )}
-            <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{cnt} archivo{cnt !== 1 ? "s" : ""}{c.es_publico ? " · 🌐 Público" : ""}</div>
+            <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>{cnt} archivo{cnt !== 1 ? "s" : ""}{c.es_publico ? " · Público" : ""}</div>
           </div>
           <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
             <button className="btn-ghost" style={{ padding: "4px 6px" }} title="Renombrar" onClick={() => { setRenamingId(c.id); setRenameVal(c.nombre); }}><Icon name="edit" size={12} /></button>
@@ -1524,7 +1525,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
           <span style={{ opacity: 0.4 }}>›</span>
           <button className="btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setNav({ tipo: "materia", id: nav.materiaId })}>{materia?.nombre}</button>
           <span style={{ opacity: 0.4 }}>›</span>
-          <span style={{ fontWeight: 700 }}>📁 {carpeta?.nombre}</span>
+          <span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="folder" size={15} color="var(--blue)" />{carpeta?.nombre}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, color: "var(--text2)" }}>{archs.length} archivo{archs.length !== 1 ? "s" : ""}</span>
@@ -1615,7 +1616,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
               const mat = materias.find(m => m.id === a.materia_id);
               return (
                 <div key={a.id} className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setBusq(""); setNav({ tipo: "materia", id: a.materia_id }); }}>
-                  <div style={{ fontSize: 20 }}>{fEmoji(a.tipo)}</div>
+                  <div style={{ width: 30, height: 30, background: `${tC(a.tipo)}18`, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{fBadge(a.tipo)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
                     <div style={{ fontSize: 10, color: "var(--text3)" }}>{mat?.nombre} · {fT(a.tamaño)}</div>
