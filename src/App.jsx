@@ -1,117 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { loadCache, saveCache } from "./offlineCache";
 import { ejecutar } from "./db";
+import { sb } from "./supabase";
+import { ESTADOS, DIAS_SEMANA, HORAS, TIPO_EVENTO, MODOS_IA, MODELOS_IA, PLAN_ESTUDIO, MAIN_USER_ID, NAV, TITULOS } from "./constants";
+import { G } from "./styles";
 
-// ─── SUPABASE ────────────────────────────────────────────────────────────────
-const SUPA_URL = import.meta.env.VITE_SUPA_URL;
-const SUPA_ANON = import.meta.env.VITE_SUPA_ANON;
-const sb = createClient(SUPA_URL, SUPA_ANON);
-// ID del usuario "main" — poner el UUID de tu cuenta en .env
-const MAIN_USER_ID = import.meta.env.VITE_MAIN_USER_ID || null;
 
-// ─── CONSTANTES ──────────────────────────────────────────────────────────────
-const ESTADOS = {
-  cursando: { label: "Cursando", color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
-  regular: { label: "Regular", color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
-  promocionada: { label: "Promocionada", color: "#6ee7b7", bg: "rgba(110,231,183,0.1)" },
-  aprobada_final: { label: "Aprobada c/Final", color: "#6ee7b7", bg: "rgba(110,231,183,0.1)" },
-  libre: { label: "Libre", color: "#f87171", bg: "rgba(248,113,113,0.1)" },
-  pendiente: { label: "Pendiente", color: "#475569", bg: "rgba(71,85,105,0.15)" },
-};
-const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const HORAS = ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00"];
-const TIPO_EVENTO = {
-  parcial: { label: "Parcial", color: "#60a5fa" },
-  final: { label: "Final", color: "#f87171" },
-  tp: { label: "TP", color: "#6ee7b7" },
-  otro: { label: "Otro", color: "#94a3b8" },
-};
-const MODOS_IA = [
-  { id: "tutor", label: "Tutor", desc: "Te evalúa con preguntas para ver si entendiste el tema" },
-  { id: "planificar", label: "Planificar", desc: "Te arma un plan de estudio en base a tus días disponibles" },
-  { id: "tp", label: "TP / Código", desc: "Te guía en trabajos prácticos sin darte la respuesta" },
-  { id: "libre", label: "Chat libre", desc: "Hacé cualquier consulta académica sin estructura" },
-];
-const MODELOS_IA = [
-  { id: "claude", label: "Claude Sonnet", color: "#c96442" },
-  { id: "gpt", label: "GPT-4o mini", color: "#10a37f" },
-  { id: "gemini", label: "Gemini Flash", color: "#4285f4" },
-];
-
-// ─── PLAN DE ESTUDIO (UTN SISTEMAS - FRT - PLAN 2023) ────────────────────────
-const PLAN_ESTUDIO = [
-  {
-    año: 0,
-    materias: [
-      { id: "fis0", nombre: "Física", c: 0 },
-      { id: "mat0", nombre: "Matemática", c: 0 },
-      { id: "tou", nombre: "Taller de Orientación Universitaria", c: 0 },
-    ]
-  },
-  {
-    año: 1,
-    materias: [
-      { id: "aed", nombre: "Algoritmos y Estructuras de Datos", c: 0 },
-      { id: "am1", nombre: "Análisis Matemático I", c: 0 },
-      { id: "arc", nombre: "Arquitectura de Computadoras", c: 0 },
-      { id: "f1", nombre: "Física I", c: 0 },
-      { id: "iys", nombre: "Ingeniería y Sociedad", c: 0 },
-      { id: "led", nombre: "Lógica y Estructuras Discretas", c: 0 },
-      { id: "spn", nombre: "Sistemas y Procesos de Negocio", c: 0 },
-      { id: "aga", nombre: "Álgebra y Geometría Analítica", c: 0 },
-    ]
-  },
-  {
-    año: 2,
-    materias: [
-      { id: "asi", nombre: "Análisis de Sistemas de Información", c: 0 },
-      { id: "am2", nombre: "Análisis Matemático II", c: 0 },
-      { id: "f2", nombre: "Física II", c: 0 },
-      { id: "i1", nombre: "Inglés I", c: 0 },
-      { id: "pdp", nombre: "Paradigmas de Programación", c: 0 },
-      { id: "ssl", nombre: "Sintaxis y Semántica de los Lenguajes", c: 0 },
-      { id: "so", nombre: "Sistemas Operativos", c: 0 },
-    ]
-  },
-  {
-    año: 3,
-    materias: [
-      { id: "an", nombre: "Análisis Numérico", c: 0 },
-      { id: "bd", nombre: "Bases de Datos", c: 0 },
-      { id: "cd", nombre: "Comunicación de Datos", c: 0 },
-      { id: "ds", nombre: "Desarrollo de Software", c: 0 },
-      { id: "dsi", nombre: "Diseño de Sistemas de Información", c: 0 },
-      { id: "eco", nombre: "Economía", c: 0 },
-      { id: "i2", nombre: "Inglés II", c: 0 },
-      { id: "pye", nombre: "Probabilidad y Estadística", c: 0 },
-    ]
-  },
-  {
-    año: 4,
-    materias: [
-      { id: "asi2", nombre: "Administración de Sistemas de Información", c: 0 },
-      { id: "ics", nombre: "Ingeniería y Calidad de Software", c: 0 },
-      { id: "io", nombre: "Investigación Operativa", c: 0 },
-      { id: "leg", nombre: "Legislación", c: 0 },
-      { id: "rd", nombre: "Redes de Datos", c: 0 },
-      { id: "sim", nombre: "Simulación", c: 0 },
-      { id: "tpa", nombre: "Tecnologías para la Automatización", c: 0 },
-    ]
-  },
-  {
-    año: 5,
-    materias: [
-      { id: "cd2", nombre: "Ciencia de Datos", c: 0 },
-      { id: "gg", nombre: "Gestión Gerencial", c: 0 },
-      { id: "iai", nombre: "Inteligencia Artificial", c: 0 },
-      { id: "pfe", nombre: "Proyecto Final", c: 0 },
-      { id: "pps", nombre: "Práctica Profesional Supervisada", c: 0 },
-      { id: "ssi", nombre: "Seguridad en los Sistemas de Información", c: 0 },
-      { id: "sis", nombre: "Sistemas de Gestión", c: 0 },
-    ]
-  }
-];
 
 // ─── ICON ─────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size = 16, color = "currentColor" }) => {
@@ -158,55 +52,6 @@ function useIsMobile() {
 }
 
 
-// ─── ESTILOS ─────────────────────────────────────────────────────────────────
-const G = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
-  :root {
-    --bg:#0b0e13; --surface:#111418; --surface2:#181c23; --surface3:#1f242d;
-    --border:#252b36; --border2:#2f3748;
-    --text:#dde3ec; --text2:#7d8899; --text3:#4a5568;
-    --blue:#4a90d9; --blue2:#3a7bc8; --blue-dim:rgba(74,144,217,0.1); --blue-mid:rgba(74,144,217,0.2);
-    --green:#5aad8f; --red:#c0504d; --slate:#7a8fa8;
-    --radius:7px; --radius2:10px; --nav-h:58px;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{height:100%;}
-  body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;}
-  ::-webkit-scrollbar{width:5px;height:5px;}
-  ::-webkit-scrollbar-track{background:var(--surface);}
-  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-  input,select,textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:var(--radius);font-family:'Barlow',sans-serif;font-size:14px;outline:none;transition:border-color 0.2s;}
-  input:focus,select:focus,textarea:focus{border-color:var(--blue);}
-  option{background:var(--surface2);}
-  button{cursor:pointer;font-family:'Barlow',sans-serif;}
-  .mono{font-family:'DM Mono',monospace;}
-  .tag{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:500;letter-spacing:0.3px;white-space:nowrap;}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);}
-  .btn-primary{background:var(--blue);color:#fff;border:none;padding:8px 18px;border-radius:var(--radius);font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s;}
-  .btn-primary:hover{background:var(--blue2);}
-  .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);padding:7px 14px;border-radius:var(--radius);font-size:13px;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;}
-  .btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
-  .btn-danger{background:transparent;color:var(--red);border:1px solid rgba(192,80,77,0.25);padding:6px 10px;border-radius:var(--radius);font-size:12px;display:inline-flex;align-items:center;transition:all 0.2s;}
-  .btn-danger:hover{background:rgba(192,80,77,0.1);}
-  .section-title{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:12px;}
-  .field-error{font-size:11px;color:var(--red);margin-top:4px;}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-  .fade-in{animation:fadeIn 0.2s ease forwards;}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-  .pulse{animation:pulse 1.4s ease infinite;}
-  @keyframes toastIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .sidebar{display:flex;}
-  .bottom-nav{display:none;}
-  .main-pad{padding:22px 26px;}
-  .header-pad{padding:16px 26px;}
-  @media(max-width:767px){
-    .sidebar{display:none !important;}
-    .bottom-nav{display:flex !important;}
-    .main-pad{padding:16px 14px 80px;}
-    .header-pad{padding:14px 16px;}
-  }
-`;
 
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 function ToastContainer({ toasts }) {
@@ -2382,16 +2227,6 @@ function VistaAsistente({ materias, eventos }) {
 }
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-const NAV = [
-  { id: "dashboard", label: "Dashboard", icon: "dashboard" },
-  { id: "materias", label: "Materias", icon: "materias" },
-  { id: "horarios", label: "Horarios", icon: "horarios" },
-  { id: "eventos", label: "Agenda", icon: "eventos" },
-  { id: "enfoque", label: "Enfoque", icon: "horarios" },
-  { id: "archivos", label: "Archivos", icon: "archivos" },
-  { id: "asistente", label: "IA", icon: "asistente" },
-];
-const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", asistente: "Asistente IA" };
 
 // ─── TUTORIAL DE ONBOARDING ───────────────────────────────────────────────────
 function TutorialModal({ onClose }) {
