@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { loadCache, saveCache } from "./offlineCache";
 
 // ─── SUPABASE ────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPA_URL;
@@ -2447,6 +2448,7 @@ export default function App() {
   const [archivos, setArchivos] = useState([]);
   const [carpetas, setCarpetas] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [online, setOnline] = useState(() => navigator.onLine);
 
   const [enfoque, setEnfoque] = useState(() => {
     const saved = localStorage.getItem("utn_enfoque");
@@ -2522,21 +2524,49 @@ export default function App() {
     else { setMaterias([]); setEventos([]); setTareas([]); setArchivos([]); setCarpetas([]); setLoadingData(false); }
   }, [session]);
 
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
   const cargarTodo = async () => {
-    setLoadingData(true);
-    const [{ data: m }, { data: e }, { data: t }, { data: a }, { data: c }] = await Promise.all([
-      sb.from("materias").select("*").order("año"),
-      sb.from("eventos").select("*").order("fecha"),
-      sb.from("tareas").select("*").order("vencimiento"),
-      sb.from("archivos").select("*").order("created_at", { ascending: false }),
-      sb.from("carpetas").select("*").order("nombre"),
-    ]);
-    setMaterias(m || []);
-    setEventos(e || []);
-    setTareas(t || []);
-    setArchivos(a || []);
-    setCarpetas(c || []);
-    setLoadingData(false);
+    const uid = session.user.id;
+    // 1) Hidratar al instante desde la caché local (también funciona sin internet)
+    const cached = loadCache(uid);
+    if (cached) {
+      setMaterias(cached.materias || []);
+      setEventos(cached.eventos || []);
+      setTareas(cached.tareas || []);
+      setArchivos(cached.archivos || []);
+      setCarpetas(cached.carpetas || []);
+      setLoadingData(false);
+    } else {
+      setLoadingData(true);
+    }
+    // 2) Refrescar desde Supabase; si no hay red, nos quedamos con lo cacheado
+    try {
+      const [{ data: m }, { data: e }, { data: t }, { data: a }, { data: c }] = await Promise.all([
+        sb.from("materias").select("*").order("año"),
+        sb.from("eventos").select("*").order("fecha"),
+        sb.from("tareas").select("*").order("vencimiento"),
+        sb.from("archivos").select("*").order("created_at", { ascending: false }),
+        sb.from("carpetas").select("*").order("nombre"),
+      ]);
+      const fresh = { materias: m || [], eventos: e || [], tareas: t || [], archivos: a || [], carpetas: c || [] };
+      setMaterias(fresh.materias);
+      setEventos(fresh.eventos);
+      setTareas(fresh.tareas);
+      setArchivos(fresh.archivos);
+      setCarpetas(fresh.carpetas);
+      saveCache(uid, fresh);
+    } catch {
+      if (!cached) showToast("Sin conexión y todavía no hay datos guardados.");
+    } finally {
+      setLoadingData(false);
+    }
   };
 
   const addMateria = async (f) => {
@@ -2598,6 +2628,11 @@ export default function App() {
   return (
     <>
       <style>{G}</style>
+      {!online && (
+        <div style={{ background: "#f59e0b", color: "#0b0e13", textAlign: "center", fontSize: 12, fontWeight: 600, padding: "5px 12px", position: "sticky", top: 0, zIndex: 100 }}>
+          Sin conexión — viendo tus datos guardados
+        </div>
+      )}
       <div style={{ display: "flex", minHeight: "100vh" }}>
         <aside className="sidebar" style={{ width: sideOpen ? 216 : 56, flexShrink: 0, background: "var(--surface)", borderRight: "1px solid var(--border)", flexDirection: "column", transition: "width 0.22s ease", overflow: "hidden", position: "sticky", top: 0, height: "100vh" }}>
           <div style={{ padding: "17px 13px", display: "flex", alignItems: "center", gap: 9, borderBottom: "1px solid var(--border)", minHeight: 60 }}>
