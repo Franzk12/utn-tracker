@@ -1,14 +1,57 @@
 // ─── SERVICE WORKER — UTN TRACKER ────────────────────────────────────────────
-const CACHE_NAME = "utn-tracker-v1";
+const CACHE = "utn-tracker-v2";
+const APP_SHELL = ["/", "/index.html", "/favicon.svg", "/manifest.webmanifest"];
 
-// Instalar service worker
+// Instalar: precachear el app shell para poder abrir la app sin internet
 self.addEventListener("install", (e) => {
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(APP_SHELL)).catch(() => {})
+  );
   self.skipWaiting();
 });
 
-// Activar y tomar control inmediatamente
+// Activar: limpiar cachés viejos y tomar control inmediatamente
 self.addEventListener("activate", (e) => {
-  e.waitUntil(clients.claim());
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Estrategia de fetch: navegación offline + assets cacheados
+self.addEventListener("fetch", (e) => {
+  const { request } = e;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  // Solo mismo origen: nunca interceptamos /api, Supabase ni R2
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api")) return;
+
+  // Abrir la app: red primero, y si no hay conexión servimos el shell cacheado
+  if (request.mode === "navigate") {
+    e.respondWith(
+      fetch(request).catch(() => caches.match("/index.html").then((r) => r || caches.match("/")))
+    );
+    return;
+  }
+
+  // Assets estáticos (JS/CSS/imágenes): stale-while-revalidate
+  e.respondWith(
+    caches.match(request).then((cached) => {
+      const network = fetch(request)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+        .catch(() => cached);
+      return cached || network;
+    })
+  );
 });
 
 // Recibir notificación push

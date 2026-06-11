@@ -1,0 +1,13 @@
+{
+  "name": "UTN Tracker",
+  "short_name": "UTN Tracker",
+  "description": "Seguimiento académico — UTN Sistemas FRT",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0e13",
+  "theme_color": "#0b0e13",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
