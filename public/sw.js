@@ -1,11 +1,13 @@
 // ─── SERVICE WORKER — UTN TRACKER ────────────────────────────────────────────
-const CACHE = "utn-tracker-v2";
-const APP_SHELL = ["/", "/index.html", "/favicon.svg", "/manifest.webmanifest"];
+// CACHE y PRECACHE son inyectados por el plugin de build (vite.config.js) con
+// la lista real de assets con hash. Estos valores son el fallback para dev.
+const CACHE = "utn-tracker-dev";
+const PRECACHE = ["/", "/index.html", "/favicon.svg", "/manifest.webmanifest"];
 
-// Instalar: precachear el app shell para poder abrir la app sin internet
+// Instalar: precachear el app shell COMPLETO (incluye el bundle JS con hash)
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(APP_SHELL)).catch(() => {})
+    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {})
   );
   self.skipWaiting();
 });
