@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { loadCache, saveCache } from "./offlineCache";
-import { ejecutar } from "./db";
+import { mutar, flushQueue, pendingCount } from "./sync";
 import { sb } from "./supabase";
 import { ESTADOS, DIAS_SEMANA, HORAS, TIPO_EVENTO, MODOS_IA, MODELOS_IA, PLAN_ESTUDIO, MAIN_USER_ID, NAV, TITULOS } from "./constants";
 import { G } from "./styles";
@@ -104,12 +104,26 @@ export default function App() {
   }, [session]);
 
   useEffect(() => {
-    const on = () => setOnline(true);
     const off = () => setOnline(false);
+    const on = async () => {
+      setOnline(true);
+      if (!session) return;
+      const uid = session.user.id;
+      if (pendingCount(uid) > 0) {
+        await flushQueue(uid);
+        showToast("Cambios sincronizados");
+        cargarTodo();
+      }
+    };
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
-  }, []);
+  }, [session]);
+
+  // Mantener la caché offline en sync con el estado (para ver y editar sin internet)
+  useEffect(() => {
+    if (session) saveCache(session.user.id, { materias, eventos, tareas, archivos, carpetas });
+  }, [session, materias, eventos, tareas, archivos, carpetas]);
 
   const cargarTodo = async () => {
     const uid = session.user.id;
@@ -125,8 +139,9 @@ export default function App() {
     } else {
       setLoadingData(true);
     }
-    // 2) Refrescar desde Supabase; si no hay red, nos quedamos con lo cacheado
+    // 2) Subir cambios offline pendientes y refrescar desde Supabase
     try {
+      await flushQueue(uid);
       const [{ data: m }, { data: e }, { data: t }, { data: a }, { data: c }] = await Promise.all([
         sb.from("materias").select("*").order("año"),
         sb.from("eventos").select("*").order("fecha"),
@@ -134,13 +149,11 @@ export default function App() {
         sb.from("archivos").select("*").order("created_at", { ascending: false }),
         sb.from("carpetas").select("*").order("nombre"),
       ]);
-      const fresh = { materias: m || [], eventos: e || [], tareas: t || [], archivos: a || [], carpetas: c || [] };
-      setMaterias(fresh.materias);
-      setEventos(fresh.eventos);
-      setTareas(fresh.tareas);
-      setArchivos(fresh.archivos);
-      setCarpetas(fresh.carpetas);
-      saveCache(uid, fresh);
+      setMaterias(m || []);
+      setEventos(e || []);
+      setTareas(t || []);
+      setArchivos(a || []);
+      setCarpetas(c || []);
     } catch {
       if (!cached) showToast("Sin conexión y todavía no hay datos guardados.");
     } finally {
@@ -148,57 +161,71 @@ export default function App() {
     }
   };
 
+  const SYNC_MSG = "Guardado sin conexión — se sincroniza al volver internet";
   const addMateria = async (f) => {
-    const payload = { ...f, user_id: session.user.id };
+    const uid = session.user.id;
+    const payload = { ...f, user_id: uid };
     if (payload.nota === "") payload.nota = null;
-    const { data, error } = await ejecutar(sb.from("materias").insert(payload).select().single());
+    const { data, queued, error } = await mutar({ uid, table: "materias", op: "insert", payload });
     if (error) { showToast(error); return; }
     setMaterias(m => [...m, data]);
+    if (queued) showToast(SYNC_MSG);
   };
   const editMateria = async (id, f) => {
+    const uid = session.user.id;
     const payload = { ...f };
     if (payload.nota === "") payload.nota = null;
-    const { data, error } = await ejecutar(sb.from("materias").update(payload).eq("id", id).select().single());
+    const { data, queued, error } = await mutar({ uid, table: "materias", op: "update", payload, rowId: id });
     if (error) { showToast(error); return; }
-    setMaterias(m => m.map(x => x.id === id ? data : x));
+    setMaterias(m => m.map(x => x.id === id ? { ...x, ...(data || payload) } : x));
+    if (queued) showToast(SYNC_MSG);
   };
   const delMateria = async (id) => {
-    const { error } = await ejecutar(sb.from("materias").delete().eq("id", id));
+    const { queued, error } = await mutar({ uid: session.user.id, table: "materias", op: "delete", rowId: id });
     if (error) { showToast(error); return; }
     setMaterias(m => m.filter(x => x.id !== id));
+    if (queued) showToast(SYNC_MSG);
   };
   const addEvento = async (f) => {
-    const { data, error } = await ejecutar(sb.from("eventos").insert({ ...f, user_id: session.user.id }).select().single());
+    const uid = session.user.id;
+    const { data, queued, error } = await mutar({ uid, table: "eventos", op: "insert", payload: { ...f, user_id: uid } });
     if (error) { showToast(error); return; }
     setEventos(e => [...e, data]);
+    if (queued) showToast(SYNC_MSG);
   };
   const editEvento = async (id, f) => {
-    const { data, error } = await ejecutar(sb.from("eventos").update(f).eq("id", id).select().single());
+    const { data, queued, error } = await mutar({ uid: session.user.id, table: "eventos", op: "update", payload: f, rowId: id });
     if (error) { showToast(error); return; }
-    setEventos(e => e.map(x => x.id === id ? data : x));
+    setEventos(e => e.map(x => x.id === id ? { ...x, ...(data || f) } : x));
+    if (queued) showToast(SYNC_MSG);
   };
   const delEvento = async (id) => {
-    const { error } = await ejecutar(sb.from("eventos").delete().eq("id", id));
+    const { queued, error } = await mutar({ uid: session.user.id, table: "eventos", op: "delete", rowId: id });
     if (error) { showToast(error); return; }
     setEventos(e => e.filter(x => x.id !== id));
+    if (queued) showToast(SYNC_MSG);
   };
 
   const onAddTarea = async (f) => {
-    const { data, error } = await ejecutar(sb.from("tareas").insert({ ...f, user_id: session.user.id }).select().single());
+    const uid = session.user.id;
+    const { data, queued, error } = await mutar({ uid, table: "tareas", op: "insert", payload: { ...f, user_id: uid } });
     if (error) { showToast(error); return; }
     setTareas(t => [...t, data]);
+    if (queued) showToast(SYNC_MSG);
   };
 
   const onToggleTarea = async (id, completada) => {
-    const { data, error } = await ejecutar(sb.from("tareas").update({ completada }).eq("id", id).select().single());
+    const { data, queued, error } = await mutar({ uid: session.user.id, table: "tareas", op: "update", payload: { completada }, rowId: id });
     if (error) { showToast(error); return; }
-    setTareas(t => t.map(x => x.id === id ? data : x));
+    setTareas(t => t.map(x => x.id === id ? { ...x, ...(data || { completada }) } : x));
+    if (queued) showToast(SYNC_MSG);
   };
 
   const onDeleteTarea = async (id) => {
-    const { error } = await ejecutar(sb.from("tareas").delete().eq("id", id));
+    const { queued, error } = await mutar({ uid: session.user.id, table: "tareas", op: "delete", rowId: id });
     if (error) { showToast(error); return; }
     setTareas(t => t.filter(x => x.id !== id));
+    if (queued) showToast(SYNC_MSG);
   };
 
   if (session === undefined) return <div style={{ minHeight: "100vh", background: "#0b0e13", display: "flex", alignItems: "center", justifyContent: "center" }}><style>{G}</style><Spinner /></div>;
@@ -209,7 +236,7 @@ export default function App() {
       <style>{G}</style>
       {!online && (
         <div style={{ background: "#f59e0b", color: "#0b0e13", textAlign: "center", fontSize: 12, fontWeight: 600, padding: "5px 12px", position: "sticky", top: 0, zIndex: 100 }}>
-          Sin conexión — viendo tus datos guardados
+          Sin conexión — tus cambios se guardan y se sincronizan al volver internet
         </div>
       )}
       <div style={{ display: "flex", minHeight: "100vh" }}>
