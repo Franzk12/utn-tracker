@@ -1513,7 +1513,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
 
   const fT = b => b > 1e6 ? `${(b/1e6).toFixed(1)}MB` : b > 1e3 ? `${(b/1e3).toFixed(0)}KB` : `${b}B`;
   const fD = d => d ? new Date(d).toLocaleDateString("es-AR", { day:"2-digit", month:"short" }) : "";
-  const tC = t => ({PDF:"#e63946",DOCX:"#2b579a",DOC:"#2b579a",XLSX:"#217346",XLS:"#217346",PPTX:"#d24726",PNG:"#f77f00",JPG:"#f77f00",JPEG:"#f77f00",ZIP:"#f4a261",RAR:"#f4a261"})[t] || "var(--slate)";
+  const tC = t => ({PDF:"#e63946",DOCX:"#2b579a",DOC:"#2b579a",XLSX:"#217346",XLS:"#217346",PPTX:"#d24726",PNG:"#f77f00",JPG:"#f77f00",JPEG:"#f77f00",ZIP:"#f4a261",RAR:"#f4a261",LINK:"#60a5fa"})[t] || "var(--slate)";
   // Badge con la extensión en color, en vez de emoji (consistente con el set de íconos SVG)
   const fBadge = (t, fs = 9.5) => <span className="mono" style={{ fontSize: fs, fontWeight: 700, color: tC(t), letterSpacing: 0.4 }}>{t}</span>;
 
@@ -1558,8 +1558,20 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
     setTimeout(() => { setUpFiles([]); setUploading(false); onRefresh(); }, 1800);
   };
 
+  const agregarEnlace = async (materiaId, carpetaId = null) => {
+    const url = window.prompt("Pegá la URL del enlace:");
+    if (!url?.trim()) return;
+    const nombre = window.prompt("Nombre para mostrar:", url.replace(/^https?:\/\//, "").slice(0, 60)) || url;
+    const { error } = await ejecutar(sb.from("archivos").insert({
+      user_id: userId, materia_id: materiaId, carpeta_id: carpetaId,
+      nombre: nombre.trim(), tipo: "LINK", tamaño: 0, storage_path: url.trim()
+    }));
+    if (error) { showToast(error); return; }
+    onRefresh();
+  };
+
   const eliminar = async (a) => {
-    if (a.storage_path) {
+    if (a.storage_path && a.tipo !== "LINK") {
       await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`, { method: "DELETE" });
     }
     const { error } = await ejecutar(sb.from("archivos").delete().eq("id", a.id));
@@ -1568,6 +1580,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
   };
 
   const descargar = async (a) => {
+    if (a.tipo === "LINK") { window.open(a.storage_path, "_blank"); return; }
     try {
       const res = await fetch(`/api/upload?key=${encodeURIComponent(a.storage_path)}`);
       const { url, error } = await res.json();
@@ -1634,11 +1647,16 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
   );
 
   const SubirBtn = ({ materiaId, carpetaId = null }) => (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--blue)", color: "#fff", borderRadius: "var(--radius)", padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.6 : 1 }}>
-      <Icon name="upload" size={14} color="#fff" />
-      {uploading ? "Subiendo..." : "Subir archivo"}
-      <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
-    </label>
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <button className="btn-ghost" style={{ fontSize: 12, padding: "7px 12px", display: "inline-flex", alignItems: "center", gap: 5 }} onClick={() => agregarEnlace(materiaId, carpetaId)}>
+        🔗 Agregar enlace
+      </button>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--blue)", color: "#fff", borderRadius: "var(--radius)", padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.6 : 1 }}>
+        <Icon name="upload" size={14} color="#fff" />
+        {uploading ? "Subiendo..." : "Subir archivo"}
+        <input type="file" multiple style={{ display: "none" }} onChange={e => subir(e.target.files, materiaId, carpetaId)} disabled={uploading} />
+      </label>
+    </div>
   );
 
   const DropZone = ({ materiaId, carpetaId = null }) => (
@@ -1667,7 +1685,7 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.nombre}</div>
         <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 1, display: "flex", gap: 8 }}>
-          <span>{fT(a.tamaño)}</span><span>{fD(a.created_at)}</span>
+          {a.tipo !== "LINK" && <span>{fT(a.tamaño)}</span>}<span>{fD(a.created_at)}</span>
           {a.es_publico && <span style={{ color: "var(--green)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="globe" size={11} color="var(--green)" />Público</span>}
         </div>
       </div>
