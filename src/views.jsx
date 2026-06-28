@@ -338,6 +338,7 @@ function MiniQuiz({ materia, onDone }) {
   const [preguntas, setPreguntas] = useState([]);
   const [idx, setIdx] = useState(0);
   const [respuestas, setRespuestas] = useState([]);
+  const [respondido, setRespondido] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -355,10 +356,16 @@ function MiniQuiz({ materia, onDone }) {
   }, []);
 
   const elegir = (opcionIdx) => {
-    const nuevas = [...respuestas, opcionIdx];
-    setRespuestas(nuevas);
-    if (nuevas.length >= preguntas.length) setFase("resultado");
-    else setIdx(i => i + 1);
+    if (respondido !== null) return;
+    const isCorrect = opcionIdx === preguntas[idx].correcta;
+    setRespondido({ opcionIdx, isCorrect });
+    setTimeout(() => {
+      setRespondido(null);
+      const nuevas = [...respuestas, opcionIdx];
+      setRespuestas(nuevas);
+      if (nuevas.length >= preguntas.length) setFase("resultado");
+      else setIdx(i => i + 1);
+    }, 900);
   };
 
   const correctas = respuestas.filter((r, i) => r === preguntas[i]?.correcta).length;
@@ -393,15 +400,22 @@ function MiniQuiz({ materia, onDone }) {
         </div>
         <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6, marginBottom: 24 }}>{p.pregunta}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {p.opciones.map((op, i) => (
-            <button key={i} onClick={() => elegir(i)}
-              style={{ padding: "13px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text)", textAlign: "left", fontSize: 13, cursor: "pointer", transition: "all 0.15s", display: "flex", alignItems: "flex-start", gap: 10 }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.background = "var(--blue-dim)"; e.currentTarget.style.color = "var(--blue)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface2)"; e.currentTarget.style.color = "var(--text)"; }}>
-              <span style={{ fontFamily: "'Barlow Condensed'", fontWeight: 700, color: "var(--text3)", flexShrink: 0, marginTop: 1 }}>{String.fromCharCode(65 + i)}.</span>
-              {op}
-            </button>
-          ))}
+          {p.opciones.map((op, i) => {
+            const esCorrecta = i === preguntas[idx].correcta;
+            const esElegida = respondido?.opcionIdx === i;
+            const bg = respondido ? (esCorrecta ? "rgba(90,173,143,0.15)" : esElegida ? "rgba(192,80,77,0.12)" : "var(--surface2)") : "var(--surface2)";
+            const border = respondido ? (esCorrecta ? "var(--green)" : esElegida ? "var(--red)" : "var(--border)") : "var(--border)";
+            const color = respondido ? (esCorrecta ? "var(--green)" : esElegida ? "var(--red)" : "var(--text2)") : "var(--text)";
+            return (
+              <button key={i} onClick={() => elegir(i)} disabled={respondido !== null}
+                style={{ padding: "13px 16px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color, textAlign: "left", fontSize: 13, cursor: respondido ? "default" : "pointer", transition: "all 0.2s", display: "flex", alignItems: "flex-start", gap: 10 }}
+                onMouseEnter={e => { if (respondido) return; e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.background = "var(--blue-dim)"; e.currentTarget.style.color = "var(--blue)"; }}
+                onMouseLeave={e => { if (respondido) return; e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface2)"; e.currentTarget.style.color = "var(--text)"; }}>
+                <span style={{ fontFamily: "'Barlow Condensed'", fontWeight: 700, color: respondido ? (esCorrecta ? "var(--green)" : esElegida ? "var(--red)" : "var(--text3)") : "var(--text3)", flexShrink: 0, marginTop: 1 }}>{String.fromCharCode(65 + i)}.</span>
+                {op}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -437,7 +451,7 @@ function MiniQuiz({ materia, onDone }) {
 }
 
 // ─── VISTA ENFOQUE ────────────────────────────────────────────────────────────
-export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo, quizPendiente, onQuizDone }) {
+export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo, onSetMateria, quizPendiente, onQuizDone }) {
   const { mins, secs, activo, modo, matId, progreso } = sessionEnfoque;
   const materia = materias.find(m => m.id === matId);
   const [probarQuiz, setProbarQuiz] = useState(false);
@@ -499,7 +513,7 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
         {!activo && (
           <div style={{ width: "100%", maxWidth: 320 }}>
             <Lbl>¿Qué vas a estudiar?</Lbl>
-            <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onStart(null, e.target.value)}>
+            <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onSetMateria(e.target.value)}>
               <option value="">Seleccionar materia...</option>
               {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
             </select>

@@ -77,7 +77,8 @@ export default function App() {
 
   const onQuizDone = () => {
     setQuizPendiente(false);
-    setEnfoque(prev => ({ ...prev, modo: "descanso", mins: 5, secs: 0, activo: false, target: null }));
+    const target = Date.now() + 5 * 60 * 1000;
+    setEnfoque(prev => ({ ...prev, modo: "descanso", mins: 5, secs: 0, activo: true, target }));
   };
 
   const startEnfoque = (m, mid) => {
@@ -88,6 +89,7 @@ export default function App() {
   const pauseEnfoque = () => setEnfoque(prev => ({ ...prev, activo: false, target: null }));
   const resetEnfoque = () => setEnfoque(prev => ({ ...prev, activo: false, target: null, mins: prev.modo === "estudio" ? 25 : 5, secs: 0 }));
   const setModoEnfoque = (m) => setEnfoque(prev => ({ ...prev, modo: m, mins: m === "estudio" ? 25 : 5, secs: 0, activo: false, target: null }));
+  const setMateriaEnfoque = (mid) => setEnfoque(prev => ({ ...prev, matId: mid }));
 
   const progEnfoque = enfoque.modo === "estudio" ? ((25 - enfoque.mins) * 60 + (60 - enfoque.secs)) / (25 * 60) * 100 : ((5 - enfoque.mins) * 60 + (60 - enfoque.secs)) / (5 * 60) * 100;
   const { toasts, show: showToast } = useToast();
@@ -316,7 +318,7 @@ export default function App() {
               {vista === "materias" && <VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria} />}
               {vista === "horarios" && <VistaHorarios materias={materias} />}
               {vista === "eventos" && <VistaEventos materias={materias} eventos={eventos} tareas={tareas} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento} onAddTarea={onAddTarea} onToggleTarea={onToggleTarea} onDeleteTarea={onDeleteTarea} />}
-              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} />}
+              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} onSetMateria={setMateriaEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} />}
               {vista === "archivos" && <VistaArchivos materias={materias} archivos={archivos} carpetas={carpetas} userId={session.user.id} showToast={showToast} onAskIA={(a) => setChatArchivo(a)} onRefresh={cargarTodo} />}
               {vista === "asistente" && (iaActiva ? <VistaAsistente materias={materias} eventos={eventos} /> : <BloqueadoIA />)}
             </>}
