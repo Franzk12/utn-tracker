@@ -2453,3 +2453,339 @@ export function VistaPerfil({ session, profile, onProfileSave, showToast, onClos
     </>
   );
 }
+
+// ─── CALCULADORA DE NOTAS ─────────────────────────────────────────────────────
+
+function calcDefault() {
+  return {
+    config: { numParciales: 2, permitePromocion: true, recuperaPromocion: false },
+    parciales: [
+      { nota: "", usóRecup: false, recup: "" },
+      { nota: "", usóRecup: false, recup: "" },
+    ],
+    tps: [],
+  };
+}
+
+function calcularEstado({ config, parciales, tps }) {
+  const { numParciales, permitePromocion, recuperaPromocion } = config;
+
+  const tpVals = tps.map(t => t !== "" ? parseFloat(t) : NaN).filter(n => !isNaN(n));
+  const tpsFallidos = tpVals.filter(n => n < 4);
+  if (tpsFallidos.length > 0) {
+    return {
+      estado: "libre", color: "#f87171",
+      label: "LIBRE",
+      razon: `${tpsFallidos.length} TP${tpsFallidos.length > 1 ? "s" : ""} desaprobado${tpsFallidos.length > 1 ? "s" : ""}`,
+      items: ["Los TPs deben ser >= 4 para regularizar"], promedio: null,
+    };
+  }
+
+  const ps = parciales.slice(0, numParciales).map((p, idx) => {
+    const nota = p.nota !== "" ? parseFloat(p.nota) : null;
+    const recup = (p.usóRecup && p.recup !== "") ? parseFloat(p.recup) : null;
+    const notaEf = recup !== null ? recup : nota;
+    const aprobado = notaEf !== null && notaEf >= 4;
+    const paraPromo = notaEf !== null && notaEf > 7 && (recuperaPromocion || !p.usóRecup);
+    const libre = nota !== null && nota < 4 && p.usóRecup && recup !== null && recup < 4;
+    const necesitaRecup = nota !== null && nota < 4 && !p.usóRecup;
+    return { n: idx + 1, nota, recup, notaEf, aprobado, paraPromo, libre, necesitaRecup };
+  });
+
+  const libres = ps.filter(p => p.libre);
+  if (libres.length > 0) {
+    return {
+      estado: "libre", color: "#f87171", label: "LIBRE",
+      razon: `Perdiste ${libres.map(p => `P${p.n}`).join(" y ")} — ambas instancias desaprobadas`,
+      items: libres.map(p => `P${p.n}: parcial ${p.nota} · recuperatorio ${p.recup} (ambos < 4)`),
+      promedio: null,
+    };
+  }
+
+  const aprobados = ps.filter(p => p.aprobado);
+  const necRecup = ps.filter(p => p.necesitaRecup);
+  const pendientes = ps.filter(p => !p.aprobado && !p.libre && !p.necesitaRecup);
+
+  if (aprobados.length === 0 && necRecup.length === 0) {
+    return {
+      estado: "sin_datos", color: "var(--text3)", label: "SIN DATOS",
+      razon: "Ingresá tus notas para calcular tu estado",
+      items: [], promedio: null,
+    };
+  }
+
+  const promedio = aprobados.length > 0
+    ? (aprobados.reduce((s, p) => s + p.notaEf, 0) / aprobados.length).toFixed(1)
+    : null;
+
+  const todosApr = ps.every(p => p.aprobado);
+  const todosPromo = permitePromocion && ps.every(p => p.paraPromo);
+
+  if (todosApr && todosPromo) {
+    return {
+      estado: "promocion", color: "#6ee7b7", label: "PROMOCIÓN",
+      razon: "¡Todos los parciales > 7!",
+      items: [`Promedio: ${promedio}`], promedio,
+    };
+  }
+
+  if (todosApr) {
+    const items = [];
+    if (permitePromocion) items.push("Para promocionar necesitabas > 7 en todos (sin recuperatorio" + (recuperaPromocion ? " o con recuperatorio > 7" : "") + ")");
+    return {
+      estado: "regular", color: "#60a5fa", label: "REGULAR",
+      razon: "Regularizaste la materia",
+      items, promedio,
+    };
+  }
+
+  const items = [];
+  necRecup.forEach(p => {
+    items.push(`P${p.n} (nota: ${p.nota}) → recuperá con ≥ 4 para regular${permitePromocion && recuperaPromocion ? ", > 7 para promoción" : ""}`);
+  });
+  pendientes.forEach(p => {
+    items.push(`P${p.n}: necesitás ≥ 4 para regular${permitePromocion ? ", > 7 para ir a promoción" : ""}`);
+  });
+
+  return {
+    estado: "en_curso", color: "#fbbf24", label: "EN CURSO",
+    razon: `${aprobados.length}/${numParciales} parciales aprobados`,
+    items, promedio,
+  };
+}
+
+const ESTADO_COLORS = {
+  libre:     { bg: "rgba(248,113,113,0.1)",  border: "rgba(248,113,113,0.3)",  text: "#f87171" },
+  regular:   { bg: "rgba(96,165,250,0.1)",   border: "rgba(96,165,250,0.3)",   text: "#60a5fa" },
+  promocion: { bg: "rgba(110,231,183,0.1)",  border: "rgba(110,231,183,0.3)",  text: "#6ee7b7" },
+  en_curso:  { bg: "rgba(251,191,36,0.08)",  border: "rgba(251,191,36,0.25)",  text: "#fbbf24" },
+  sin_datos: { bg: "var(--surface2)",        border: "var(--border)",          text: "var(--text3)" },
+};
+
+export function VistaCalculadora({ materias }) {
+  const cursando = materias.filter(m => m.estado === "cursando");
+  const [selId, setSelId] = useState(null);
+  const [calc, setCalcState] = useState(null);
+
+  const loadCalc = (id) => {
+    try { const s = localStorage.getItem(`calc_v1_${id}`); if (s) return JSON.parse(s); } catch {}
+    return calcDefault();
+  };
+
+  useEffect(() => {
+    setCalcState(selId ? loadCalc(selId) : null);
+  }, [selId]);
+
+  const setCalc = (fn) => setCalcState(prev => {
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    try { localStorage.setItem(`calc_v1_${selId}`, JSON.stringify(next)); } catch {}
+    return next;
+  });
+
+  const setPConfig = (key, val) => setCalc(prev => {
+    const config = { ...prev.config, [key]: val };
+    if (key === "numParciales") {
+      const ps = Array(val).fill(null).map((_, i) => prev.parciales[i] || { nota: "", usóRecup: false, recup: "" });
+      return { ...prev, config, parciales: ps };
+    }
+    return { ...prev, config };
+  });
+
+  const setParcial = (i, key, val) => setCalc(prev => {
+    const ps = [...prev.parciales];
+    ps[i] = { ...ps[i], [key]: val };
+    return { ...prev, parciales: ps };
+  });
+
+  const resultado = calc ? calcularEstado(calc) : null;
+  const eC = resultado ? (ESTADO_COLORS[resultado.estado] || ESTADO_COLORS.sin_datos) : null;
+
+  const previewFor = (id) => {
+    try { const s = localStorage.getItem(`calc_v1_${id}`); if (s) return calcularEstado(JSON.parse(s)); } catch {}
+    return null;
+  };
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="card" style={{ padding: "16px 20px", background: "linear-gradient(135deg,var(--surface),var(--surface2))", display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 44, height: 44, background: "rgba(96,165,250,0.1)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name="calc" size={22} color="var(--blue)" />
+        </div>
+        <div>
+          <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>CALCULADORA DE NOTAS</h2>
+          <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>Estado de regularidad por materia · Guardado localmente</p>
+        </div>
+      </div>
+
+      {cursando.length === 0 ? (
+        <div className="card" style={{ padding: 32, textAlign: "center", color: "var(--text2)", fontSize: 13 }}>
+          No tenés materias en estado "Cursando" actualmente.
+        </div>
+      ) : (
+        <>
+          <p className="section-title">Seleccioná una materia</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {cursando.map(m => {
+              const isSelected = selId === m.id;
+              const prev = !isSelected ? previewFor(m.id) : null;
+              const pC = prev ? ESTADO_COLORS[prev.estado] : null;
+              return (
+                <div key={m.id}>
+                  <button onClick={() => setSelId(isSelected ? null : m.id)} style={{
+                    width: "100%", textAlign: "left", padding: "12px 16px",
+                    background: isSelected ? "var(--surface)" : "var(--surface2)",
+                    border: `1px solid ${isSelected ? "var(--blue)" : "var(--border)"}`,
+                    borderRadius: isSelected ? "10px 10px 0 0" : 10,
+                    borderBottom: isSelected ? "none" : undefined,
+                    cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+                  }}>
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{m.nombre}</div>
+                    {prev && prev.estado !== "sin_datos" && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: pC?.text, background: `${pC?.text}22`, borderRadius: 6, padding: "2px 8px" }}>
+                        {prev.label}{prev.promedio ? ` · ${prev.promedio}` : ""}
+                      </span>
+                    )}
+                    <Icon name="chevronR" size={14} color="var(--text3)" />
+                  </button>
+
+                  {isSelected && calc && (
+                    <div className="card" style={{ borderRadius: "0 0 10px 10px", border: "1px solid var(--blue)", borderTop: "none", padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+
+                      {/* Config */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, color: "var(--text3)" }}>Parciales:</span>
+                          {[2, 3, 4].map(n => (
+                            <button key={n} onClick={() => setPConfig("numParciales", n)} style={{
+                              width: 28, height: 28, borderRadius: 6,
+                              border: `1px solid ${calc.config.numParciales === n ? "var(--blue)" : "var(--border)"}`,
+                              background: calc.config.numParciales === n ? "var(--blue-dim)" : "var(--surface2)",
+                              color: calc.config.numParciales === n ? "var(--blue)" : "var(--text2)",
+                              fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            }}>{n}</button>
+                          ))}
+                        </div>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text2)", cursor: "pointer" }}>
+                          <input type="checkbox" checked={calc.config.permitePromocion} onChange={e => setPConfig("permitePromocion", e.target.checked)} />
+                          Permite promoción
+                        </label>
+                        {calc.config.permitePromocion && (
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text2)", cursor: "pointer" }}>
+                            <input type="checkbox" checked={calc.config.recuperaPromocion} onChange={e => setPConfig("recuperaPromocion", e.target.checked)} />
+                            Recuperatorio da promoción
+                          </label>
+                        )}
+                        <button onClick={() => { const f = calcDefault(); try { localStorage.setItem(`calc_v1_${selId}`, JSON.stringify(f)); } catch {} setCalcState(f); }}
+                          style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 11, color: "var(--text3)", cursor: "pointer" }}>
+                          Limpiar
+                        </button>
+                      </div>
+
+                      {/* Parciales */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <p className="section-title" style={{ margin: 0 }}>Parciales</p>
+                        {calc.parciales.slice(0, calc.config.numParciales).map((p, i) => {
+                          const nota = p.nota !== "" ? parseFloat(p.nota) : null;
+                          const fallBase = nota !== null && nota < 4;
+                          const aprobadoBase = nota !== null && nota >= 4;
+                          const recupNota = p.usóRecup && p.recup !== "" ? parseFloat(p.recup) : null;
+                          return (
+                            <div key={i} style={{ background: "var(--surface2)", borderRadius: 8, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text2)", minWidth: 26 }}>P{i + 1}</span>
+                                <input type="number" min="0" max="10" step="0.5" placeholder="Nota (0–10)" value={p.nota}
+                                  onChange={e => setParcial(i, "nota", e.target.value)}
+                                  style={{ width: 105, fontSize: 13, padding: "5px 10px" }} />
+                                {nota !== null && (
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: aprobadoBase ? "#6ee7b7" : "#f87171" }}>
+                                    {aprobadoBase ? "✓ Aprobado" : "✗ Desaprobado"}
+                                  </span>
+                                )}
+                              </div>
+                              {fallBase && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, paddingLeft: 36 }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text2)", cursor: "pointer" }}>
+                                    <input type="checkbox" checked={p.usóRecup} onChange={e => setParcial(i, "usóRecup", e.target.checked)} />
+                                    Rendí recuperatorio
+                                  </label>
+                                  {p.usóRecup && <>
+                                    <input type="number" min="0" max="10" step="0.5" placeholder="Nota recup" value={p.recup}
+                                      onChange={e => setParcial(i, "recup", e.target.value)}
+                                      style={{ width: 105, fontSize: 13, padding: "5px 10px" }} />
+                                    {recupNota !== null && (
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: recupNota >= 4 ? "#6ee7b7" : "#f87171" }}>
+                                        {recupNota >= 4 ? "✓ Aprobado" : "✗ Libre"}
+                                      </span>
+                                    )}
+                                  </>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* TPs */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <p className="section-title" style={{ margin: 0, flex: 1 }}>TPs</p>
+                          <button onClick={() => setCalc(prev => ({ ...prev, tps: [...prev.tps, ""] }))}
+                            style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 10px", fontSize: 11, color: "var(--text2)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                            <Icon name="plus" size={11} /> Agregar TP
+                          </button>
+                        </div>
+                        {calc.tps.length === 0
+                          ? <p style={{ fontSize: 11, color: "var(--text3)", margin: 0 }}>Sin TPs cargados</p>
+                          : (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                              {calc.tps.map((tp, i) => {
+                                const v = tp !== "" ? parseFloat(tp) : null;
+                                const ok = v !== null && v >= 4;
+                                return (
+                                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface2)", borderRadius: 8, padding: "6px 10px" }}>
+                                    <span style={{ fontSize: 11, color: "var(--text3)" }}>TP{i + 1}</span>
+                                    <input type="number" min="0" max="10" step="0.5" value={tp}
+                                      onChange={e => setCalc(prev => { const tps = [...prev.tps]; tps[i] = e.target.value; return { ...prev, tps }; })}
+                                      style={{ width: 65, fontSize: 13, padding: "3px 8px" }} />
+                                    {v !== null && <span style={{ fontSize: 11, fontWeight: 700, color: ok ? "#6ee7b7" : "#f87171" }}>{ok ? "✓" : "✗"}</span>}
+                                    <button onClick={() => setCalc(prev => ({ ...prev, tps: prev.tps.filter((_, j) => j !== i) }))}
+                                      style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 16, padding: "0 2px", lineHeight: 1 }}>×</button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )
+                        }
+                      </div>
+
+                      {/* Resultado */}
+                      {resultado && (
+                        <div style={{ background: eC.bg, border: `1px solid ${eC.border}`, borderRadius: 10, padding: "14px 18px" }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
+                            <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 900, color: eC.text, letterSpacing: "0.03em" }}>
+                              {resultado.label}
+                            </span>
+                            {resultado.promedio && (
+                              <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 32, fontWeight: 900, color: eC.text, marginLeft: "auto" }}>
+                                {resultado.promedio}
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ fontSize: 12, color: eC.text, margin: "0 0 6px", opacity: 0.85 }}>{resultado.razon}</p>
+                          {resultado.items.map((item, i) => (
+                            <p key={i} style={{ fontSize: 11, color: "var(--text2)", margin: "3px 0" }}>· {item}</p>
+                          ))}
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
