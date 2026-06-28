@@ -84,9 +84,8 @@ export default async function handler(req, res) {
     return err(res, 400, `Modelo no válido. Opciones: ${Object.keys(MODELOS).join(", ")}`);
   }
 
-  if (!checkEnv(req, res, config.envKey)) return; // checkEnv usa req solo para contexto
+  if (!checkEnv(res, config.envKey)) return;
   const key = process.env[config.envKey];
-  if (!key) return err(res, 500, `API key de ${modelo} no configurada`);
 
   try {
     const text = await config.call(key, system || "", messages);
