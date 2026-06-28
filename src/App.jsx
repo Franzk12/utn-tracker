@@ -178,18 +178,26 @@ export default function App() {
     // 2) Subir cambios offline pendientes y refrescar desde Supabase
     try {
       await flushQueue(uid);
-      const [{ data: m }, { data: e }, { data: t }, { data: a }, { data: c }] = await Promise.all([
+      const queries = await Promise.allSettled([
         sb.from("materias").select("*").order("año"),
         sb.from("eventos").select("*").order("fecha"),
         sb.from("tareas").select("*").order("vencimiento"),
         sb.from("archivos").select("*").order("created_at", { ascending: false }),
         sb.from("carpetas").select("*").order("nombre"),
       ]);
+      const [m, e, t, a, c] = queries.map(r => r.status === "fulfilled" ? r.value.data : null);
       setMaterias(m || []);
       setEventos(e || []);
       setTareas(t || []);
       setArchivos(a || []);
       setCarpetas(c || []);
+      const errores = queries.map((r, i) => {
+        const tabla = ["materias","eventos","tareas","archivos","carpetas"][i];
+        if (r.status === "rejected") return tabla;
+        if (r.value?.error) return tabla;
+        return null;
+      }).filter(Boolean);
+      if (errores.length) showToast(`Error cargando: ${errores.join(", ")} — revisá las tablas en Supabase`);
     } catch {
       if (!cached) showToast("Sin conexión y todavía no hay datos guardados.");
     } finally {
