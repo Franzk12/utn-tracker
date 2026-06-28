@@ -343,7 +343,7 @@ function MiniQuiz({ materia, onDone }) {
 
   useEffect(() => {
     const sys = `Sos un generador de quiz para estudiantes universitarios argentinos. Generá exactamente 5 preguntas de opción múltiple sobre la materia "${materia.nombre}" (UTN Sistemas, año ${materia.año}). Las preguntas deben cubrir conceptos clave de la materia. Devolvé SOLO un JSON array sin texto extra:\n[{"pregunta":"...","opciones":["...","...","...","..."],"correcta":0,"explicacion":"..."}]`;
-    fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: sys, messages: [{ role: "user", content: "Generá las 5 preguntas." }], modelo: "claude" }) })
+    fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: sys, messages: [{ role: "user", content: "Generá las 5 preguntas." }], modelo: "auto" }) })
       .then(r => r.json())
       .then(data => {
         if (data.error) throw new Error(data.error);

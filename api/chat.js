@@ -79,9 +79,24 @@ export default async function handler(req, res) {
     return err(res, 400, "El campo 'messages' es requerido y debe ser un array no vacío");
   }
 
+  // Modo auto: prueba cada modelo en orden hasta que uno funcione
+  if (modelo === "auto") {
+    for (const [nombre, config] of Object.entries(MODELOS)) {
+      const key = process.env[config.envKey];
+      if (!key) continue;
+      try {
+        const text = await config.call(key, system || "", messages);
+        return res.status(200).json({ text, modelo: nombre });
+      } catch (_) {
+        continue;
+      }
+    }
+    return err(res, 503, "No hay modelos de IA disponibles. Configurá ANTHROPIC_API_KEY, OPENAI_API_KEY o GEMINI_API_KEY en Vercel.");
+  }
+
   const config = MODELOS[modelo];
   if (!config) {
-    return err(res, 400, `Modelo no válido. Opciones: ${Object.keys(MODELOS).join(", ")}`);
+    return err(res, 400, `Modelo no válido. Opciones: auto, ${Object.keys(MODELOS).join(", ")}`);
   }
 
   if (!checkEnv(res, config.envKey)) return;
