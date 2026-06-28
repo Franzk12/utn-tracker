@@ -65,11 +65,19 @@ export default function App() {
     const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
     audio.play().catch(() => { });
     if (Notification.permission === "granted") {
-      new Notification(enfoque.modo === "estudio" ? "¡Bloque terminado!" : "¡Descanso terminado!", { body: enfoque.modo === "estudio" ? "Es hora de un descanso." : "Volvemos al estudio." });
+      new Notification(enfoque.modo === "estudio" ? "¡Bloque terminado!" : "¡Descanso terminado!", { body: enfoque.modo === "estudio" ? "Respondé el quiz antes del descanso." : "Volvemos al estudio." });
     }
-    const proxModo = enfoque.modo === "estudio" ? "descanso" : "estudio";
-    const proxMins = proxModo === "estudio" ? 25 : 5;
-    setEnfoque(prev => ({ ...prev, activo: false, modo: proxModo, mins: proxMins, secs: 0, target: null }));
+    if (enfoque.modo === "estudio") {
+      setEnfoque(prev => ({ ...prev, activo: false, target: null }));
+      setQuizPendiente(true);
+    } else {
+      setEnfoque(prev => ({ ...prev, activo: false, modo: "estudio", mins: 25, secs: 0, target: null }));
+    }
+  };
+
+  const onQuizDone = () => {
+    setQuizPendiente(false);
+    setEnfoque(prev => ({ ...prev, modo: "descanso", mins: 5, secs: 0, activo: false, target: null }));
   };
 
   const startEnfoque = (m, mid) => {
@@ -86,6 +94,7 @@ export default function App() {
   const [showNotifs, setShowNotifs] = useState(false);
   const [showPushConfig, setShowPushConfig] = useState(false);
   const [iaActiva, setIaActiva] = useState(false);
+  const [quizPendiente, setQuizPendiente] = useState(false);
 
   const userId = session?.user?.id;
   const { estado: pushEstado, activar: activarPush, desactivar: desactivarPush } = usePushNotifications(userId);
@@ -307,7 +316,7 @@ export default function App() {
               {vista === "materias" && <VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria} />}
               {vista === "horarios" && <VistaHorarios materias={materias} />}
               {vista === "eventos" && <VistaEventos materias={materias} eventos={eventos} tareas={tareas} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento} onAddTarea={onAddTarea} onToggleTarea={onToggleTarea} onDeleteTarea={onDeleteTarea} />}
-              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} />}
+              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} />}
               {vista === "archivos" && <VistaArchivos materias={materias} archivos={archivos} carpetas={carpetas} userId={session.user.id} showToast={showToast} onAskIA={(a) => setChatArchivo(a)} onRefresh={cargarTodo} />}
               {vista === "asistente" && (iaActiva ? <VistaAsistente materias={materias} eventos={eventos} /> : <BloqueadoIA />)}
             </>}

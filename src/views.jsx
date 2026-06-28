@@ -332,11 +332,177 @@ export function VistaAnalisis({ materias }) {
 }
 
 // ─── VISTA ENFOQUE (POMODORO) ────────────────────────────────────────────────
-export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo }) {
-  const { mins, secs, activo, modo, matId, progreso } = sessionEnfoque;
+// ─── MINI QUIZ (post-bloque Pomodoro) ─────────────────────────────────────────
+function MiniQuiz({ materia, onDone }) {
+  const [fase, setFase] = useState("cargando");
+  const [preguntas, setPreguntas] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [respuestas, setRespuestas] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const sys = `Sos un generador de quiz para estudiantes universitarios argentinos. Generá exactamente 5 preguntas de opción múltiple sobre la materia "${materia.nombre}" (UTN Sistemas, año ${materia.año}). Las preguntas deben cubrir conceptos clave de la materia. Devolvé SOLO un JSON array sin texto extra:\n[{"pregunta":"...","opciones":["...","...","...","..."],"correcta":0,"explicacion":"..."}]`;
+    fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: sys, messages: [{ role: "user", content: "Generá las 5 preguntas." }], modelo: "claude" }) })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) throw new Error(data.error);
+        const parsed = JSON.parse(data.text.trim().replace(/```json\n?|```/g, "").trim());
+        if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("respuesta inválida");
+        setPreguntas(parsed);
+        setFase("respondiendo");
+      })
+      .catch(e => setError(e.message));
+  }, []);
+
+  const elegir = (opcionIdx) => {
+    const nuevas = [...respuestas, opcionIdx];
+    setRespuestas(nuevas);
+    if (nuevas.length >= preguntas.length) setFase("resultado");
+    else setIdx(i => i + 1);
+  };
+
+  const correctas = respuestas.filter((r, i) => r === preguntas[i]?.correcta).length;
+  const pct = preguntas.length > 0 ? Math.round((correctas / preguntas.length) * 100) : 0;
+  const scoreColor = pct >= 80 ? "var(--green)" : pct >= 60 ? "var(--blue)" : "var(--red)";
+
+  if (error) return (
+    <div style={{ textAlign: "center", padding: "20px 0" }}>
+      <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 16 }}>No se pudieron generar preguntas: {error}</div>
+      <button className="btn-ghost" onClick={() => onDone(0, 0)}>Tomar descanso igual</button>
+    </div>
+  );
+
+  if (fase === "cargando") return (
+    <div style={{ textAlign: "center", padding: 40 }}>
+      <Spinner />
+      <div style={{ color: "var(--text2)", marginTop: 16, fontSize: 13 }}>Generando preguntas sobre {materia.nombre}…</div>
+    </div>
+  );
+
+  if (fase === "respondiendo") {
+    const p = preguntas[idx];
+    return (
+      <div className="fade-in">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "var(--text3)", fontWeight: 700, letterSpacing: 1.5 }}>PREGUNTA {idx + 1} / {preguntas.length}</div>
+          <div style={{ display: "flex", gap: 5 }}>
+            {preguntas.map((_, i) => (
+              <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < respuestas.length ? (respuestas[i] === preguntas[i].correcta ? "var(--green)" : "var(--red)") : i === idx ? "var(--blue)" : "var(--border)" }} />
+            ))}
+          </div>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6, marginBottom: 24 }}>{p.pregunta}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {p.opciones.map((op, i) => (
+            <button key={i} onClick={() => elegir(i)}
+              style={{ padding: "13px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text)", textAlign: "left", fontSize: 13, cursor: "pointer", transition: "all 0.15s", display: "flex", alignItems: "flex-start", gap: 10 }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.background = "var(--blue-dim)"; e.currentTarget.style.color = "var(--blue)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface2)"; e.currentTarget.style.color = "var(--text)"; }}>
+              <span style={{ fontFamily: "'Barlow Condensed'", fontWeight: 700, color: "var(--text3)", flexShrink: 0, marginTop: 1 }}>{String.fromCharCode(65 + i)}.</span>
+              {op}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 30, padding: "20px 0" }}>
+    <div className="fade-in">
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 60, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{correctas}/{preguntas.length}</div>
+        <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 8 }}>
+          {pct >= 80 ? "¡Excelente! Dominás el tema." : pct >= 60 ? "Bien, hay algunos puntos para repasar." : "Repasá estos temas antes del próximo bloque."}
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24, maxHeight: 260, overflowY: "auto" }}>
+        {preguntas.map((p, i) => {
+          const ok = respuestas[i] === p.correcta;
+          return (
+            <div key={i} style={{ padding: "10px 14px", borderRadius: 8, background: ok ? "rgba(90,173,143,0.08)" : "rgba(192,80,77,0.08)", border: `1px solid ${ok ? "rgba(90,173,143,0.2)" : "rgba(192,80,77,0.2)"}` }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: ok ? "var(--green)" : "var(--red)", display: "flex", gap: 6, alignItems: "flex-start" }}>
+                <span style={{ flexShrink: 0 }}>{ok ? "✓" : "✗"}</span>
+                <span style={{ lineHeight: 1.4 }}>{p.pregunta}</span>
+              </div>
+              {!ok && <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 4, paddingLeft: 18, lineHeight: 1.5 }}>{p.explicacion}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <button className="btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => onDone(correctas, preguntas.length)}>
+        Tomar descanso · 5 min
+      </button>
+    </div>
+  );
+}
+
+// ─── VISTA ENFOQUE ────────────────────────────────────────────────────────────
+export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo, quizPendiente, onQuizDone }) {
+  const { mins, secs, activo, modo, matId, progreso } = sessionEnfoque;
+  const materia = materias.find(m => m.id === matId);
+
+  const hoy = new Date().toISOString().split("T")[0];
+  const [sesion, setSesion] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("utn_sesion") || "null");
+      if (s?.fecha === hoy) return s;
+    } catch {}
+    return { fecha: hoy, materia_id: null, bloques: [] };
+  });
+
+  useEffect(() => {
+    if (!matId) return;
+    setSesion(prev => {
+      if (prev.materia_id === matId) return prev;
+      const nueva = prev.materia_id && prev.materia_id !== matId
+        ? { fecha: hoy, materia_id: matId, bloques: [] }
+        : { ...prev, materia_id: matId };
+      localStorage.setItem("utn_sesion", JSON.stringify(nueva));
+      return nueva;
+    });
+  }, [matId]);
+
+  const handleQuizDone = (correctas, total) => {
+    setSesion(prev => {
+      const updated = { ...prev, bloques: [...prev.bloques, { correctas, total, ts: Date.now() }] };
+      localStorage.setItem("utn_sesion", JSON.stringify(updated));
+      return updated;
+    });
+    onQuizDone();
+  };
+
+  const limpiarSesion = () => {
+    const nueva = { fecha: hoy, materia_id: matId || null, bloques: [] };
+    setSesion(nueva);
+    localStorage.setItem("utn_sesion", JSON.stringify(nueva));
+  };
+
+  const totalCorrectas = sesion.bloques.reduce((s, b) => s + b.correctas, 0);
+  const totalPreguntas = sesion.bloques.reduce((s, b) => s + b.total, 0);
+  const pctSesion = totalPreguntas > 0 ? Math.round((totalCorrectas / totalPreguntas) * 100) : null;
+
+  // ── QUIZ OVERLAY ──────────────────────────────────────────────────────────
+  if (quizPendiente) {
+    return (
+      <div className="fade-in" style={{ maxWidth: 520, margin: "0 auto", padding: "20px 0" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "var(--blue)", marginBottom: 6 }}>BLOQUE TERMINADO</div>
+          <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 26, fontWeight: 800 }}>Mini Quiz · {materia?.nombre || "Repaso"}</h2>
+          <p style={{ fontSize: 13, color: "var(--text2)", marginTop: 6 }}>5 preguntas antes del descanso</p>
+        </div>
+        <div className="card" style={{ padding: 24 }}>
+          {materia
+            ? <MiniQuiz materia={materia} onDone={handleQuizDone} />
+            : <div style={{ textAlign: "center" }}><button className="btn-primary" onClick={() => onQuizDone()}>Tomar descanso</button></div>
+          }
+        </div>
+      </div>
+    );
+  }
+
+  // ── TIMER ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 28, padding: "20px 0" }}>
       <div style={{ textAlign: "center" }}>
         <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: modo === "estudio" ? "var(--blue)" : "var(--green)" }}>
           {modo === "estudio" ? "MODO ENFOQUE" : "TIEMPO DE DESCANSO"}
@@ -344,7 +510,6 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
         <p style={{ fontSize: 13, color: "var(--text3)", marginTop: 5 }}>Mantené la concentración en un solo tema.</p>
       </div>
 
-      {/* Selector de Materia */}
       {!activo && (
         <div style={{ width: "100%", maxWidth: 300 }}>
           <Lbl>¿Qué vas a estudiar?</Lbl>
@@ -355,7 +520,6 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
         </div>
       )}
 
-      {/* Timer Circular */}
       <div style={{ position: "relative", width: 240, height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <svg style={{ position: "absolute", transform: "rotate(-90deg)", width: "100%", height: "100%" }}>
           <circle cx="120" cy="120" r="110" stroke="var(--surface2)" strokeWidth="8" fill="none" />
@@ -365,7 +529,7 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
           <div style={{ fontFamily: "'DM Mono'", fontSize: 54, fontWeight: 700, color: "var(--text)" }}>
             {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
           </div>
-          {matId && <div style={{ fontSize: 11, color: "var(--blue)", fontWeight: 700, textTransform: "uppercase", marginTop: -5 }}>{materias.find(m => m.id === matId)?.nombre}</div>}
+          {matId && <div style={{ fontSize: 11, color: "var(--blue)", fontWeight: 700, textTransform: "uppercase", marginTop: -5 }}>{materia?.nombre}</div>}
         </div>
       </div>
 
@@ -380,6 +544,39 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
         <button className="tag" onClick={() => onSetModo("estudio")} style={{ background: modo === "estudio" ? "var(--blue-dim)" : "var(--surface2)", color: modo === "estudio" ? "var(--blue)" : "var(--text3)", cursor: "pointer", border: "none" }}>Pomodoro (25m)</button>
         <button className="tag" onClick={() => onSetModo("descanso")} style={{ background: modo === "descanso" ? "var(--green-dim)" : "var(--surface2)", color: modo === "descanso" ? "var(--green)" : "var(--text3)", cursor: "pointer", border: "none" }}>Descanso (5m)</button>
       </div>
+
+      {sesion.bloques.length > 0 && (
+        <div style={{ width: "100%", maxWidth: 360 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <p className="section-title" style={{ margin: 0 }}>Sesión de hoy</p>
+            <button onClick={limpiarSesion} style={{ fontSize: 11, color: "var(--text3)", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
+          </div>
+          <div className="card" style={{ padding: 16, display: "flex", gap: 0 }}>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 30, fontWeight: 800, color: "var(--blue)" }}>{sesion.bloques.length}</div>
+              <div style={{ fontSize: 11, color: "var(--text3)" }}>bloques</div>
+            </div>
+            <div style={{ width: 1, background: "var(--border)", margin: "4px 0" }} />
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 30, fontWeight: 800, color: "var(--blue)" }}>{sesion.bloques.length * 25}m</div>
+              <div style={{ fontSize: 11, color: "var(--text3)" }}>estudiados</div>
+            </div>
+            {pctSesion !== null && <>
+              <div style={{ width: 1, background: "var(--border)", margin: "4px 0" }} />
+              <div style={{ flex: 1, textAlign: "center" }}>
+                <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 30, fontWeight: 800, color: pctSesion >= 80 ? "var(--green)" : pctSesion >= 60 ? "var(--blue)" : "var(--red)" }}>{pctSesion}%</div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>precisión</div>
+              </div>
+            </>}
+          </div>
+          <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+            {sesion.bloques.map((b, i) => (
+              <div key={i} title={`Bloque ${i + 1}: ${b.correctas}/${b.total}`}
+                style={{ flex: 1, height: 4, borderRadius: 2, background: b.total === 0 ? "var(--border)" : b.correctas / b.total >= 0.8 ? "var(--green)" : b.correctas / b.total >= 0.6 ? "var(--blue)" : "var(--red)" }} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

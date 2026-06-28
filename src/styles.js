@@ -7,7 +7,7 @@ export const G = `
     /* Contraste AA: text2 ~6:1, text3 ~4.7:1 sobre el fondo (antes #4a5568 fallaba a 2.3:1) */
     --text:#e3e8f1; --text2:#97a1b2; --text3:#79839a;
     --blue:#4a90d9; --blue2:#3a7bc8; --blue-dim:rgba(74,144,217,0.1); --blue-mid:rgba(74,144,217,0.2);
-    --green:#5aad8f; --red:#c0504d; --slate:#7a8fa8;
+    --green:#5aad8f; --green-dim:rgba(90,173,143,0.1); --red:#c0504d; --slate:#7a8fa8;
     --radius:7px; --radius2:10px; --nav-h:58px;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
