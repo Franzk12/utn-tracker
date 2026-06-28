@@ -1,0 +1,27 @@
+FORMATO DEL DOCX PARA EL BANCO DE PREGUNTAS
+==========================================
+
+Cada pregunta tiene este formato (separadas por línea en blanco):
+
+  ¿Cuál es la definición de derivada?
+  A) La integral de una función
+  *B) La tasa de cambio instantánea en un punto
+  C) El área bajo la curva
+  D) El valor máximo de la función
+  Explicación: La derivada mide cómo cambia f(x) en cada punto.
+
+Reglas:
+  - El * va pegado al inicio de la opción correcta (ej: *B) o *opción directamente)
+  - La línea "Explicación:" es opcional pero aparece cuando errás la respuesta
+  - Separar preguntas con UNA línea en blanco (o "---")
+  - Los prefijos A) B) C) D) son opcionales
+  - Mínimo 2 opciones, máximo 4
+
+Cómo convertir a JSON (en la terminal del proyecto):
+  node scripts/parse-quiz-docx.mjs ~/Descargas/MATERIA.docx nombre-de-la-materia
+
+Ejemplos de slugs:
+  Análisis Matemático I   →  analisis-matematico-i
+  Física I                →  fisica-i
+  Algoritmos              →  algoritmos
+  Sistemas Operativos     →  sistemas-operativos

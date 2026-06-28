@@ -340,16 +340,19 @@ function MiniQuiz({ materia, onDone }) {
   const [respuestas, setRespuestas] = useState([]);
   const [respondido, setRespondido] = useState(null);
   const [error, setError] = useState("");
+  const [sinBanco, setSinBanco] = useState(false);
 
   useEffect(() => {
-    const sys = `Sos un generador de quiz para estudiantes universitarios argentinos. Generá exactamente 5 preguntas de opción múltiple sobre la materia "${materia.nombre}" (UTN Sistemas, año ${materia.año}). Las preguntas deben cubrir conceptos clave de la materia. Devolvé SOLO un JSON array sin texto extra:\n[{"pregunta":"...","opciones":["...","...","...","..."],"correcta":0,"explicacion":"..."}]`;
-    fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: sys, messages: [{ role: "user", content: "Generá las 5 preguntas." }], modelo: "auto" }) })
+    const nombre = encodeURIComponent(materia?.nombre || "");
+    fetch(`/api/quiz?materia=${nombre}`)
       .then(r => r.json())
       .then(data => {
-        if (data.error) throw new Error(data.error);
-        const parsed = JSON.parse(data.text.trim().replace(/```json\n?|```/g, "").trim());
-        if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("respuesta inválida");
-        setPreguntas(parsed);
+        if (data.error) {
+          if (data.error.includes("Sin banco")) { setSinBanco(true); return; }
+          throw new Error(data.error);
+        }
+        if (!Array.isArray(data.preguntas) || data.preguntas.length === 0) throw new Error("banco vacío");
+        setPreguntas(data.preguntas);
         setFase("respondiendo");
       })
       .catch(e => setError(e.message));
@@ -372,9 +375,23 @@ function MiniQuiz({ materia, onDone }) {
   const pct = preguntas.length > 0 ? Math.round((correctas / preguntas.length) * 100) : 0;
   const scoreColor = pct >= 80 ? "var(--green)" : pct >= 60 ? "var(--blue)" : "var(--red)";
 
+  if (sinBanco) return (
+    <div style={{ textAlign: "center", padding: "20px 0" }}>
+      <div style={{ fontSize: 28, marginBottom: 12 }}>📄</div>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Sin banco de preguntas</div>
+      <div style={{ color: "var(--text2)", fontSize: 12, lineHeight: 1.6, marginBottom: 6 }}>
+        Creá un DOCX con tus preguntas y corré:
+      </div>
+      <code style={{ display: "block", background: "var(--surface2)", borderRadius: 6, padding: "8px 12px", fontSize: 11, color: "var(--blue)", marginBottom: 20, wordBreak: "break-all" }}>
+        node scripts/parse-quiz-docx.mjs archivo.docx {(materia?.nombre || "materia").toLowerCase().replace(/\s+/g, "-")}
+      </code>
+      <button className="btn-ghost" onClick={() => onDone(0, 0)}>Tomar descanso igual</button>
+    </div>
+  );
+
   if (error) return (
     <div style={{ textAlign: "center", padding: "20px 0" }}>
-      <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 16 }}>No se pudieron generar preguntas: {error}</div>
+      <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 16 }}>Error: {error}</div>
       <button className="btn-ghost" onClick={() => onDone(0, 0)}>Tomar descanso igual</button>
     </div>
   );
@@ -382,7 +399,7 @@ function MiniQuiz({ materia, onDone }) {
   if (fase === "cargando") return (
     <div style={{ textAlign: "center", padding: 40 }}>
       <Spinner />
-      <div style={{ color: "var(--text2)", marginTop: 16, fontSize: 13 }}>Generando preguntas sobre {materia.nombre}…</div>
+      <div style={{ color: "var(--text2)", marginTop: 16, fontSize: 13 }}>Cargando preguntas de {materia?.nombre}…</div>
     </div>
   );
 
