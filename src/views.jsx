@@ -468,10 +468,46 @@ function MiniQuiz({ materia, onDone }) {
 }
 
 // ─── VISTA ENFOQUE ────────────────────────────────────────────────────────────
-export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo, onSetMateria, quizPendiente, onQuizDone }) {
+export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo, onSetMateria, quizPendiente, onQuizDone, showToast }) {
   const { mins, secs, activo, modo, matId, progreso } = sessionEnfoque;
   const materia = materias.find(m => m.id === matId);
   const [probarQuiz, setProbarQuiz] = useState(false);
+  const [bancoDB, setBancoDB] = useState(null);
+  const [subiendoBanco, setSubiendoBanco] = useState(false);
+
+  useEffect(() => {
+    if (!materia) { setBancoDB(null); return; }
+    const slug = slugifyNombre(materia.nombre);
+    sb.from("quiz_banks").select("preguntas_count, updated_at").eq("materia_slug", slug).single()
+      .then(({ data }) => setBancoDB(data || null));
+  }, [materia?.id]);
+
+  const subirDocxEnfoque = async (file) => {
+    if (!materia) return;
+    const slug = slugifyNombre(materia.nombre);
+    setSubiendoBanco(true);
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = e => res(e.target.result.split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const r = await fetch("/api/quiz-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ materia_slug: slug, materia_nombre: materia.nombre, docx: base64 }),
+      });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      setBancoDB({ preguntas_count: data.preguntas_count, updated_at: new Date().toISOString() });
+      showToast?.(`✓ ${data.preguntas_count} preguntas cargadas`);
+    } catch (e) {
+      showToast?.(e.message || "Error al subir el archivo");
+    } finally {
+      setSubiendoBanco(false);
+    }
+  };
 
   const hoy = new Date().toISOString().split("T")[0];
   const [sesion, setSesion] = useState(() => {
@@ -528,12 +564,28 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
         </div>
 
         {!activo && (
-          <div style={{ width: "100%", maxWidth: 320 }}>
-            <Lbl>¿Qué vas a estudiar?</Lbl>
-            <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onSetMateria(e.target.value)}>
-              <option value="">Seleccionar materia...</option>
-              {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-            </select>
+          <div style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <Lbl>¿Qué vas a estudiar?</Lbl>
+              <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onSetMateria(e.target.value)}>
+                <option value="">Seleccionar materia...</option>
+                {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              </select>
+            </div>
+            {matId && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: 7, background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 11, color: bancoDB ? "var(--green)" : "var(--text3)" }}>
+                  {bancoDB ? `${bancoDB.preguntas_count} preguntas en el banco` : "Sin banco de preguntas"}
+                </span>
+                <label style={{ cursor: subiendoBanco ? "wait" : "pointer" }}>
+                  <input type="file" accept=".docx" style={{ display: "none" }} disabled={subiendoBanco}
+                    onChange={e => { if (e.target.files[0]) subirDocxEnfoque(e.target.files[0]); e.target.value = ""; }} />
+                  <span style={{ fontSize: 11, color: "var(--blue)", cursor: "inherit", opacity: subiendoBanco ? 0.5 : 1 }}>
+                    {subiendoBanco ? "Subiendo…" : bancoDB ? "Reemplazar" : "Subir DOCX"}
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
@@ -2238,23 +2290,30 @@ export function TutorialModal({ onClose }) {
   );
 }
 
-// ─── VISTA PERFIL ─────────────────────────────────────────────────────────────
+// ─── PERFIL PANEL (slide-in desde el header) ──────────────────────────────────
 const AVATAR_COLORS = ["#60a5fa", "#6ee7b7", "#f87171", "#fbbf24", "#a78bfa", "#f472b6", "#fb923c", "#94a3b8"];
 
 function slugifyNombre(n) {
   return n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-export function VistaPerfil({ session, profile, onProfileSave, materias, showToast }) {
+export function AvatarBtn({ profile, session, onClick }) {
+  const color = profile?.avatar_color || AVATAR_COLORS[0];
+  const inicial = (profile?.nickname || session?.user?.email || "?")[0].toUpperCase();
+  return (
+    <button onClick={onClick} style={{ width: 32, height: 32, borderRadius: "50%", background: color, border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontSize: 15, fontWeight: 800, color: "#000", cursor: "pointer", flexShrink: 0 }}>
+      {inicial}
+    </button>
+  );
+}
+
+export function VistaPerfil({ session, profile, onProfileSave, showToast, onClose }) {
   const [editando, setEditando] = useState(false);
   const [nickname, setNickname] = useState(profile?.nickname || "");
   const [color, setColor] = useState(profile?.avatar_color || AVATAR_COLORS[0]);
   const [saving, setSaving] = useState(false);
-
   const [sesiones, setSesiones] = useState([]);
-  const [bancos, setBancos] = useState({});
-  const [loadingBancos, setLoadingBancos] = useState(true);
-  const [subiendo, setSubiendo] = useState({});
+  const [loadingSes, setLoadingSes] = useState(true);
 
   useEffect(() => {
     setNickname(profile?.nickname || "");
@@ -2263,16 +2322,8 @@ export function VistaPerfil({ session, profile, onProfileSave, materias, showToa
 
   useEffect(() => {
     if (!session) return;
-    Promise.all([
-      sb.from("quiz_sessions").select("*").eq("user_id", session.user.id).order("created_at", { ascending: false }).limit(20),
-      sb.from("quiz_banks").select("materia_slug, materia_nombre, preguntas_count, updated_at"),
-    ]).then(([{ data: s }, { data: b }]) => {
-      setSesiones(s || []);
-      const map = {};
-      (b || []).forEach(r => { map[r.materia_slug] = r; });
-      setBancos(map);
-      setLoadingBancos(false);
-    });
+    sb.from("quiz_sessions").select("*").eq("user_id", session.user.id).order("created_at", { ascending: false }).limit(30)
+      .then(({ data }) => { setSesiones(data || []); setLoadingSes(false); });
   }, [session]);
 
   const guardarPerfil = async () => {
@@ -2282,32 +2333,6 @@ export function VistaPerfil({ session, profile, onProfileSave, materias, showToa
     if (error) { showToast("Error al guardar perfil"); return; }
     onProfileSave({ ...profile, nickname, avatar_color: color });
     setEditando(false);
-  };
-
-  const subirDocx = async (materia, file) => {
-    const slug = slugifyNombre(materia.nombre);
-    setSubiendo(p => ({ ...p, [slug]: true }));
-    try {
-      const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = e => res(e.target.result.split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const r = await fetch("/api/quiz-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ materia_slug: slug, materia_nombre: materia.nombre, docx: base64 }),
-      });
-      const data = await r.json();
-      if (data.error) throw new Error(data.error);
-      setBancos(p => ({ ...p, [slug]: { materia_slug: slug, materia_nombre: materia.nombre, preguntas_count: data.preguntas_count, updated_at: new Date().toISOString() } }));
-      showToast(`✓ ${data.preguntas_count} preguntas cargadas para ${materia.nombre}`);
-    } catch (e) {
-      showToast(e.message || "Error al subir el archivo");
-    } finally {
-      setSubiendo(p => ({ ...p, [slug]: false }));
-    }
   };
 
   const inicial = (nickname || session?.user?.email || "?")[0].toUpperCase();
@@ -2324,130 +2349,107 @@ export function VistaPerfil({ session, profile, onProfileSave, materias, showToa
       }, {})).sort((a, b) => b[1].sum / b[1].n - a[1].sum / a[1].n)[0]?.[0]
     : null;
 
-  const S = { card: { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px" } };
-
   return (
-    <div className="fade-in" style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 40 }}>
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 150 }} onClick={onClose} />
+      <div className="fade-in" style={{ position: "fixed", top: 0, right: 0, height: "100dvh", width: "min(360px, 100vw)", background: "var(--surface)", borderLeft: "1px solid var(--border)", zIndex: 151, display: "flex", flexDirection: "column", overflowY: "auto" }}>
 
-      {/* ── TARJETA PERFIL ──────────────────────────────────────────────── */}
-      <div style={S.card}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: editando ? 20 : 0 }}>
-          <div style={{ width: 52, height: 52, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: "#000", flexShrink: 0 }}>
-            {inicial}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {editando ? (
-              <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Tu nombre o apodo" style={{ width: "100%", fontSize: 16, fontWeight: 600 }} maxLength={32} autoFocus />
-            ) : (
-              <>
-                <div style={{ fontWeight: 700, fontSize: 17 }}>{nickname || session?.user?.email?.split("@")[0]}</div>
-                <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>{session?.user?.email}</div>
-              </>
-            )}
-          </div>
-          {!editando && (
-            <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => setEditando(true)}>Editar</button>
-          )}
+        {/* Header del panel */}
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 17, letterSpacing: 0.3 }}>Mi Perfil</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text2)", fontSize: 22, cursor: "pointer", lineHeight: 1, padding: "2px 6px" }}>×</button>
         </div>
 
-        {editando && (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginBottom: 8 }}>COLOR DE AVATAR</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {AVATAR_COLORS.map(c => (
-                  <button key={c} onClick={() => setColor(c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: color === c ? "2px solid var(--text)" : "2px solid transparent", cursor: "pointer", padding: 0 }} />
-                ))}
+        <div style={{ padding: "18px 18px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+
+          {/* Avatar + nombre */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: "#000", flexShrink: 0 }}>
+              {inicial}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {editando ? (
+                <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Tu nombre o apodo" style={{ width: "100%", fontSize: 15, fontWeight: 600 }} maxLength={32} autoFocus />
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{nickname || session?.user?.email?.split("@")[0]}</div>
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session?.user?.email}</div>
+                </>
+              )}
+            </div>
+            {!editando && <button className="btn-ghost" style={{ fontSize: 11, padding: "5px 10px" }} onClick={() => setEditando(true)}>Editar</button>}
+          </div>
+
+          {editando && (
+            <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 14px", display: "flex", flexDirection: "column", gap: 12, border: "1px solid var(--border)" }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginBottom: 8 }}>COLOR DE AVATAR</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {AVATAR_COLORS.map(c => (
+                    <button key={c} onClick={() => setColor(c)} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: color === c ? "2px solid var(--text)" : "2px solid transparent", cursor: "pointer", padding: 0 }} />
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn-ghost" onClick={() => setEditando(false)} style={{ flex: 1, justifyContent: "center", fontSize: 12 }}>Cancelar</button>
+                <button className="btn-primary" onClick={guardarPerfil} disabled={saving} style={{ flex: 2, justifyContent: "center", fontSize: 12 }}>
+                  {saving ? "Guardando…" : "Guardar"}
+                </button>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn-ghost" onClick={() => setEditando(false)} style={{ flex: 1, justifyContent: "center" }}>Cancelar</button>
-              <button className="btn-primary" onClick={guardarPerfil} disabled={saving} style={{ flex: 2, justifyContent: "center" }}>
-                {saving ? "Guardando…" : "Guardar cambios"}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+          )}
 
-      {/* ── STATS ───────────────────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-        {[
-          { label: "QUIZZES", value: totalSesiones || "—" },
-          { label: "PROMEDIO", value: promedio != null ? `${promedio}%` : "—" },
-          { label: "MEJOR", value: mejorMateria ? mejorMateria.split(" ").slice(-1)[0] : "—", title: mejorMateria },
-        ].map(({ label, value, title }) => (
-          <div key={label} style={{ ...S.card, textAlign: "center", padding: "14px 10px" }} title={title}>
-            <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 28, fontWeight: 800, color: "var(--blue)", lineHeight: 1 }}>{value}</div>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginTop: 4 }}>{label}</div>
+          {/* Stats quizzes */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[
+              { label: "QUIZZES", value: totalSesiones || "—" },
+              { label: "PROMEDIO", value: promedio != null ? `${promedio}%` : "—" },
+              { label: "MEJOR", value: mejorMateria ? mejorMateria.split(" ").pop() : "—", title: mejorMateria },
+            ].map(({ label, value, title }) => (
+              <div key={label} style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 10, textAlign: "center", padding: "12px 8px" }} title={title}>
+                <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: "var(--blue)", lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginTop: 4 }}>{label}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* ── BANCOS DE PREGUNTAS ─────────────────────────────────────────── */}
-      <div style={S.card}>
-        <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 15, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginBottom: 14 }}>BANCOS DE PREGUNTAS</div>
-        {loadingBancos ? <Spinner /> : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {materias.length === 0 && (
-              <div style={{ fontSize: 13, color: "var(--text3)" }}>Agregá materias primero desde la sección Materias.</div>
+          {/* Historial */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginBottom: 10 }}>HISTORIAL DE QUIZZES</div>
+            {loadingSes ? <Spinner /> : sesiones.length === 0 ? (
+              <div style={{ fontSize: 13, color: "var(--text3)" }}>Todavía no hiciste ningún quiz.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {sesiones.map(s => {
+                  const pct = Math.round(s.correctas / s.total * 100);
+                  const col = pct >= 80 ? "var(--green)" : pct >= 60 ? "var(--blue)" : "var(--red)";
+                  const fecha = new Date(s.created_at);
+                  const hoy = new Date();
+                  const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1);
+                  const label = fecha.toDateString() === hoy.toDateString() ? "Hoy"
+                    : fecha.toDateString() === ayer.toDateString() ? "Ayer"
+                    : fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+                  return (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7, background: "var(--surface2)" }}>
+                      <span style={{ fontSize: 10, color: "var(--text3)", minWidth: 28 }}>{label}</span>
+                      <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.materia_nombre}</span>
+                      <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 15, fontWeight: 800, color: col }}>{s.correctas}/{s.total}</span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
-            {materias.map(m => {
-              const slug = slugifyNombre(m.nombre);
-              const banco = bancos[slug];
-              const cargando = subiendo[slug];
-              return (
-                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8, background: "var(--surface2)", border: "1px solid var(--border)" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.nombre}</div>
-                    {banco ? (
-                      <div style={{ fontSize: 11, color: "var(--green)", marginTop: 2 }}>{banco.preguntas_count} preguntas · {new Date(banco.updated_at).toLocaleDateString("es-AR")}</div>
-                    ) : (
-                      <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>Sin banco de preguntas</div>
-                    )}
-                  </div>
-                  <label style={{ cursor: cargando ? "wait" : "pointer", flexShrink: 0 }}>
-                    <input type="file" accept=".docx" style={{ display: "none" }} disabled={cargando}
-                      onChange={e => { if (e.target.files[0]) subirDocx(m, e.target.files[0]); e.target.value = ""; }} />
-                    <span className={banco ? "btn-ghost" : "btn-primary"} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 7, cursor: "inherit", opacity: cargando ? 0.6 : 1 }}>
-                      {cargando ? "Subiendo…" : banco ? "Reemplazar" : "Subir DOCX"}
-                    </span>
-                  </label>
-                </div>
-              );
-            })}
           </div>
-        )}
-        <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 8, background: "var(--surface2)", fontSize: 11, color: "var(--text3)", lineHeight: 1.7 }}>
-          <strong style={{ color: "var(--text2)" }}>Formato:</strong> separá preguntas con línea en blanco, marcá la correcta con <code>*</code> al inicio. Ej: <code>*A) La derivada</code>. Línea <code>Explicación:</code> opcional.
+        </div>
+
+        {/* Cerrar sesión al fondo */}
+        <div style={{ padding: "14px 18px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+          <button className="btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 13, color: "var(--red)", borderColor: "var(--red)" }}
+            onClick={() => sb.auth.signOut()}>
+            Cerrar sesión
+          </button>
         </div>
       </div>
-
-      {/* ── HISTORIAL ───────────────────────────────────────────────────── */}
-      {sesiones.length > 0 && (
-        <div style={S.card}>
-          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 15, fontWeight: 700, letterSpacing: 1.5, color: "var(--text3)", marginBottom: 14 }}>HISTORIAL DE QUIZZES</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
-            {sesiones.map(s => {
-              const pct = Math.round(s.correctas / s.total * 100);
-              const col = pct >= 80 ? "var(--green)" : pct >= 60 ? "var(--blue)" : "var(--red)";
-              const fecha = new Date(s.created_at);
-              const hoy = new Date();
-              const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1);
-              const label = fecha.toDateString() === hoy.toDateString() ? "Hoy"
-                : fecha.toDateString() === ayer.toDateString() ? "Ayer"
-                : fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
-              return (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: "var(--surface2)" }}>
-                  <span style={{ fontSize: 11, color: "var(--text3)", minWidth: 32 }}>{label}</span>
-                  <span style={{ flex: 1, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.materia_nombre}</span>
-                  <span style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, fontWeight: 800, color: col }}>{s.correctas}/{s.total}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

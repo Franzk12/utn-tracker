@@ -7,7 +7,7 @@ import { G } from "./styles";
 import { Icon } from "./components/Icon";
 import { ToastContainer, BloqueadoIA, ConfirmModal, Modal, Lbl, Spinner } from "./components/ui";
 import { useIsMobile, useToast, usePushNotifications, useNotificaciones } from "./hooks";
-import { PanelNotificaciones, AuthPage, Dashboard, VistaAnalisis, VistaEnfoque, FormMateria, VistasMaterias, VistaHorarios, VistaMapa, ImportadorIA, FormEvento, VistaTareas, VistaEventos, VistaArchivos, VistaChatArchivo, VistaAsistente, TutorialModal, VistaPerfil } from "./views";
+import { PanelNotificaciones, AuthPage, Dashboard, VistaAnalisis, VistaEnfoque, FormMateria, VistasMaterias, VistaHorarios, VistaMapa, ImportadorIA, FormEvento, VistaTareas, VistaEventos, VistaArchivos, VistaChatArchivo, VistaAsistente, TutorialModal, VistaPerfil, AvatarBtn } from "./views";
 
 
 
@@ -40,6 +40,7 @@ export default function App() {
 
   const [chatArchivo, setChatArchivo] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [showPerfil, setShowPerfil] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("utn_enfoque", JSON.stringify(enfoque));
@@ -293,9 +294,9 @@ export default function App() {
               );
             })}
           </nav>
-          {sideOpen && session && <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 11, color: "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 6 }}>{session.user.email}</div>
-            <button className="btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12, padding: "6px" }} onClick={() => sb.auth.signOut()}><Icon name="logout" size={13} />Cerrar sesión</button>
+          {session && <div style={{ padding: "10px 8px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: sideOpen ? "flex-start" : "center", paddingLeft: sideOpen ? 14 : 8 }}>
+            <AvatarBtn profile={profile} session={session} onClick={() => setShowPerfil(true)} />
+            {sideOpen && <span style={{ marginLeft: 10, fontSize: 12, color: "var(--text2)", alignSelf: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{profile?.nickname || session.user.email.split("@")[0]}</span>}
           </div>}
           <button aria-label="Contraer o expandir el menú" onClick={() => setSideOpen(o => !o)} style={{ margin: "9px 6px", padding: "9px", border: "1px solid var(--border)", borderRadius: 6, background: "transparent", color: "var(--text2)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
@@ -309,32 +310,12 @@ export default function App() {
             <div style={{ flex: 1 }}>
               <h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 20, fontWeight: 800, letterSpacing: 0.3 }}>{TITULOS[vista]}</h1>
             </div>
-            {pushEstado !== "no-soportado" && (
-              <button aria-label="Configurar notificaciones" onClick={() => setShowPushConfig(true)}
-                style={{
-                  background: pushEstado === "activo" ? "var(--blue-dim)" : "var(--surface2)",
-                  border: `1px solid ${pushEstado === "activo" ? "var(--blue)" : pushEstado === "denegado" ? "var(--border)" : "var(--border)"}`,
-                  borderRadius: 7, padding: "7px 9px", display: "flex", alignItems: "center",
-                  cursor: pushEstado === "denegado" ? "not-allowed" : "pointer",
-                  color: pushEstado === "activo" ? "var(--blue)" : pushEstado === "denegado" ? "var(--text3)" : "var(--text2)",
-                  transition: "all 0.15s", opacity: pushEstado === "solicitando" ? 0.6 : 1
-                }}
-                onMouseEnter={e => { if (pushEstado !== "denegado" && pushEstado !== "activo") { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; } }}
-                onMouseLeave={e => { if (pushEstado !== "denegado" && pushEstado !== "activo") { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; } }}
-                disabled={pushEstado === "solicitando" || pushEstado === "denegado"}>
-                <Icon name="bell" size={16} color="currentColor" />
-              </button>
-            )}
-            {/* Botón panel notificaciones */}
-            <button onClick={() => setShowNotifs(true)} style={{
-              background: "var(--surface2)", border: "1px solid var(--border)",
-              borderRadius: 7, padding: "7px 9px", display: "flex", alignItems: "center", cursor: "pointer",
-              transition: "border-color 0.15s", color: "var(--text2)"
-            }}
+            <button onClick={() => setShowNotifs(true)} aria-label="Notificaciones" style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 7, padding: "7px 9px", display: "flex", alignItems: "center", cursor: "pointer", transition: "border-color 0.15s", color: "var(--text2)" }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}>
-              <Icon name="dashboard" size={16} color="currentColor" />
+              <Icon name="bell" size={16} color="currentColor" />
             </button>
+            <AvatarBtn profile={profile} session={session} onClick={() => setShowPerfil(true)} />
           </header>
           <div className="main-pad" style={{ flex: 1 }}>
             {loadingData ? <Spinner /> : <>
@@ -342,10 +323,8 @@ export default function App() {
               {vista === "materias" && <VistasMaterias materias={materias} onAdd={addMateria} onEdit={editMateria} onDelete={delMateria} />}
               {vista === "horarios" && <VistaHorarios materias={materias} />}
               {vista === "eventos" && <VistaEventos materias={materias} eventos={eventos} tareas={tareas} onAdd={addEvento} onEdit={editEvento} onDelete={delEvento} onAddTarea={onAddTarea} onToggleTarea={onToggleTarea} onDeleteTarea={onDeleteTarea} />}
-              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} onSetMateria={setMateriaEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} />}
+              {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} onSetMateria={setMateriaEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} showToast={showToast} />}
               {vista === "archivos" && <VistaArchivos materias={materias} archivos={archivos} carpetas={carpetas} userId={session.user.id} showToast={showToast} onAskIA={(a) => setChatArchivo(a)} onRefresh={cargarTodo} />}
-              {vista === "asistente" && (iaActiva ? <VistaAsistente materias={materias} eventos={eventos} /> : <BloqueadoIA />)}
-              {vista === "perfil" && <VistaPerfil session={session} profile={profile} onProfileSave={setProfile} materias={materias} showToast={showToast} />}
             </>}
           </div>
         </main>
@@ -427,6 +406,9 @@ export default function App() {
         if (data.error) throw new Error(data.error);
         return data.text;
       }} modelo={localStorage.getItem("utn_modelo") || "claude"} />}
+
+      {/* PANEL PERFIL */}
+      {showPerfil && <VistaPerfil session={session} profile={profile} onProfileSave={setProfile} showToast={showToast} onClose={() => setShowPerfil(false)} />}
 
       {/* BOTÓN FLOTANTE FRAZK */}
       <a href="https://www.frazk.lol" target="_blank" rel="noopener noreferrer"
