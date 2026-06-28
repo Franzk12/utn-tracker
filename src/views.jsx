@@ -1577,7 +1577,27 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
   const [renamingId, setRenamingId] = useState(null);
   const [renameVal, setRenameVal] = useState("");
   const [moving, setMoving] = useState(null);
+  const [syncingMoodle, setSyncingMoodle] = useState(false);
   const isMain = userId === MAIN_USER_ID;
+
+  const syncMoodle = async () => {
+    setSyncingMoodle(true);
+    try {
+      const res = await fetch("/api/moodle-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Error desconocido");
+      showToast(`Moodle sync: ${data.sincronizadas} materias · ${data.total_recursos} recursos`);
+      onRefresh();
+    } catch (e) {
+      showToast(`Error sync Moodle: ${e.message}`);
+    } finally {
+      setSyncingMoodle(false);
+    }
+  };
   const sv = m => { setView(m); localStorage.setItem("utn_av", m); };
 
   const fT = b => b > 1e6 ? `${(b/1e6).toFixed(1)}MB` : b > 1e3 ? `${(b/1e3).toFixed(0)}KB` : `${b}B`;
@@ -1912,10 +1932,17 @@ export function VistaArchivos({ materias, archivos, carpetas, userId, showToast,
         <div style={{ width: 44, height: 44, background: "var(--blue-dim)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon name="archivos" size={22} color="var(--blue)" />
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>BIBLIOTECA</h2>
           <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>{archivos.length} archivos · {carpetas.length} carpetas · Seleccioná una materia para subir</p>
         </div>
+        {isMain && (
+          <button onClick={syncMoodle} disabled={syncingMoodle}
+            style={{ flexShrink: 0, background: syncingMoodle ? "var(--surface2)" : "var(--blue-dim)", border: "1px solid var(--blue)", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 700, color: "var(--blue)", cursor: syncingMoodle ? "default" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="refresh" size={13} color="var(--blue)" />
+            {syncingMoodle ? "Sincronizando..." : "Sync Moodle"}
+          </button>
+        )}
       </div>
       <div style={{ position: "relative" }}>
         <input style={{ width: "100%", paddingLeft: 36, fontSize: 13 }} placeholder="Buscar archivos en todas las materias..." value={busq} onChange={e => setBusq(e.target.value)} />
