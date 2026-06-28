@@ -7,7 +7,7 @@ import { G } from "./styles";
 import { Icon } from "./components/Icon";
 import { ToastContainer, BloqueadoIA, ConfirmModal, Modal, Lbl, Spinner } from "./components/ui";
 import { useIsMobile, useToast, usePushNotifications, useNotificaciones } from "./hooks";
-import { PanelNotificaciones, AuthPage, Dashboard, VistaAnalisis, VistaEnfoque, FormMateria, VistasMaterias, VistaHorarios, VistaMapa, ImportadorIA, FormEvento, VistaTareas, VistaEventos, VistaArchivos, VistaChatArchivo, VistaAsistente, TutorialModal } from "./views";
+import { PanelNotificaciones, AuthPage, Dashboard, VistaAnalisis, VistaEnfoque, FormMateria, VistasMaterias, VistaHorarios, VistaMapa, ImportadorIA, FormEvento, VistaTareas, VistaEventos, VistaArchivos, VistaChatArchivo, VistaAsistente, TutorialModal, VistaPerfil } from "./views";
 
 
 
@@ -39,6 +39,7 @@ export default function App() {
   });
 
   const [chatArchivo, setChatArchivo] = useState(null);
+  const [profile, setProfile] = useState(null);
 
   useEffect(() => {
     localStorage.setItem("utn_enfoque", JSON.stringify(enfoque));
@@ -75,10 +76,22 @@ export default function App() {
     }
   };
 
-  const onQuizDone = () => {
+  const onQuizDone = (correctas, total) => {
     setQuizPendiente(false);
     const target = Date.now() + 5 * 60 * 1000;
     setEnfoque(prev => ({ ...prev, modo: "descanso", mins: 5, secs: 0, activo: true, target }));
+    if (total > 0 && session) {
+      const materia = materias.find(m => m.id === enfoque.matId);
+      if (materia) {
+        sb.from("quiz_sessions").insert({
+          user_id: session.user.id,
+          materia_slug: materia.nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+          materia_nombre: materia.nombre,
+          correctas,
+          total,
+        });
+      }
+    }
   };
 
   const startEnfoque = (m, mid) => {
@@ -110,8 +123,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session) cargarTodo();
-    else { setMaterias([]); setEventos([]); setTareas([]); setArchivos([]); setCarpetas([]); setLoadingData(false); }
+    if (session) {
+      cargarTodo();
+      sb.from("profiles").select().eq("id", session.user.id).single().then(({ data }) => {
+        if (data) { setProfile(data); }
+        else {
+          const def = { id: session.user.id, nickname: session.user.email.split("@")[0], avatar_color: "#60a5fa" };
+          sb.from("profiles").insert(def);
+          setProfile(def);
+        }
+      });
+    } else {
+      setMaterias([]); setEventos([]); setTareas([]); setArchivos([]); setCarpetas([]); setLoadingData(false); setProfile(null);
+    }
   }, [session]);
 
   useEffect(() => {
@@ -321,6 +345,7 @@ export default function App() {
               {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} onSetMateria={setMateriaEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} />}
               {vista === "archivos" && <VistaArchivos materias={materias} archivos={archivos} carpetas={carpetas} userId={session.user.id} showToast={showToast} onAskIA={(a) => setChatArchivo(a)} onRefresh={cargarTodo} />}
               {vista === "asistente" && (iaActiva ? <VistaAsistente materias={materias} eventos={eventos} /> : <BloqueadoIA />)}
+              {vista === "perfil" && <VistaPerfil session={session} profile={profile} onProfileSave={setProfile} materias={materias} showToast={showToast} />}
             </>}
           </div>
         </main>

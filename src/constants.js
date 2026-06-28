@@ -111,5 +111,6 @@ export const NAV = [
   { id: "enfoque", label: "Enfoque", icon: "horarios" },
   { id: "archivos", label: "Archivos", icon: "archivos" },
   { id: "asistente", label: "IA", icon: "asistente" },
+  { id: "perfil", label: "Perfil", icon: "materias" },
 ];
-export const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", asistente: "Asistente IA" };
+export const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", asistente: "Asistente IA", perfil: "Mi Perfil" };
