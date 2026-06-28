@@ -440,6 +440,7 @@ function MiniQuiz({ materia, onDone }) {
 export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onReset, onSetModo, quizPendiente, onQuizDone }) {
   const { mins, secs, activo, modo, matId, progreso } = sessionEnfoque;
   const materia = materias.find(m => m.id === matId);
+  const [probarQuiz, setProbarQuiz] = useState(false);
 
   const hoy = new Date().toISOString().split("T")[0];
   const [sesion, setSesion] = useState(() => {
@@ -463,6 +464,7 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
   }, [matId]);
 
   const handleQuizDone = (correctas, total) => {
+    if (probarQuiz) { setProbarQuiz(false); return; }
     setSesion(prev => {
       const updated = { ...prev, bloques: [...prev.bloques, { correctas, total, ts: Date.now() }] };
       localStorage.setItem("utn_sesion", JSON.stringify(updated));
@@ -480,104 +482,119 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
   const totalCorrectas = sesion.bloques.reduce((s, b) => s + b.correctas, 0);
   const totalPreguntas = sesion.bloques.reduce((s, b) => s + b.total, 0);
   const pctSesion = totalPreguntas > 0 ? Math.round((totalCorrectas / totalPreguntas) * 100) : null;
+  const mostrarModal = quizPendiente || probarQuiz;
 
-  // ── QUIZ OVERLAY ──────────────────────────────────────────────────────────
-  if (quizPendiente) {
-    return (
-      <div className="fade-in" style={{ maxWidth: 520, margin: "0 auto", padding: "20px 0" }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "var(--blue)", marginBottom: 6 }}>BLOQUE TERMINADO</div>
-          <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 26, fontWeight: 800 }}>Mini Quiz · {materia?.nombre || "Repaso"}</h2>
-          <p style={{ fontSize: 13, color: "var(--text2)", marginTop: 6 }}>5 preguntas antes del descanso</p>
-        </div>
-        <div className="card" style={{ padding: 24 }}>
-          {materia
-            ? <MiniQuiz materia={materia} onDone={handleQuizDone} />
-            : <div style={{ textAlign: "center" }}><button className="btn-primary" onClick={() => onQuizDone()}>Tomar descanso</button></div>
-          }
-        </div>
-      </div>
-    );
-  }
-
-  // ── TIMER ─────────────────────────────────────────────────────────────────
   return (
-    <div className="fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 28, padding: "20px 0" }}>
-      <div style={{ textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: modo === "estudio" ? "var(--blue)" : "var(--green)" }}>
-          {modo === "estudio" ? "MODO ENFOQUE" : "TIEMPO DE DESCANSO"}
-        </h2>
-        <p style={{ fontSize: 13, color: "var(--text3)", marginTop: 5 }}>Mantené la concentración en un solo tema.</p>
-      </div>
+    <>
+      {/* ── TIMER ─────────────────────────────────────────────────────────── */}
+      <div className="fade-in" style={{ maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 28, padding: "20px 0" }}>
 
-      {!activo && (
-        <div style={{ width: "100%", maxWidth: 300 }}>
-          <Lbl>¿Qué vas a estudiar?</Lbl>
-          <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onStart(null, e.target.value)}>
-            <option value="">Seleccionar materia...</option>
-            {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-          </select>
+        <div style={{ textAlign: "center" }}>
+          <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 24, fontWeight: 800, color: modo === "estudio" ? "var(--blue)" : "var(--green)" }}>
+            {modo === "estudio" ? "MODO ENFOQUE" : "TIEMPO DE DESCANSO"}
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--text3)", marginTop: 4 }}>Mantené la concentración en un solo tema.</p>
         </div>
-      )}
 
-      <div style={{ position: "relative", width: 240, height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <svg style={{ position: "absolute", transform: "rotate(-90deg)", width: "100%", height: "100%" }}>
-          <circle cx="120" cy="120" r="110" stroke="var(--surface2)" strokeWidth="8" fill="none" />
-          <circle cx="120" cy="120" r="110" stroke={modo === "estudio" ? "var(--blue)" : "var(--green)"} strokeWidth="8" fill="none" strokeDasharray="691" strokeDashoffset={691 - (691 * (progreso / 100))} style={{ transition: "stroke-dashoffset 0.5s linear" }} strokeLinecap="round" />
-        </svg>
-        <div style={{ textAlign: "center", zIndex: 2 }}>
-          <div style={{ fontFamily: "'DM Mono'", fontSize: 54, fontWeight: 700, color: "var(--text)" }}>
-            {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+        {!activo && (
+          <div style={{ width: "100%", maxWidth: 320 }}>
+            <Lbl>¿Qué vas a estudiar?</Lbl>
+            <select style={{ width: "100%", marginTop: 5 }} value={matId} onChange={e => onStart(null, e.target.value)}>
+              <option value="">Seleccionar materia...</option>
+              {materias.filter(m => ["cursando", "regular"].includes(m.estado)).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+            </select>
           </div>
-          {matId && <div style={{ fontSize: 11, color: "var(--blue)", fontWeight: 700, textTransform: "uppercase", marginTop: -5 }}>{materia?.nombre}</div>}
+        )}
+
+        {/* Timer circular */}
+        <div style={{ position: "relative", width: 240, height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg style={{ position: "absolute", transform: "rotate(-90deg)", width: "100%", height: "100%" }}>
+            <circle cx="120" cy="120" r="110" stroke="var(--surface2)" strokeWidth="8" fill="none" />
+            <circle cx="120" cy="120" r="110" stroke={modo === "estudio" ? "var(--blue)" : "var(--green)"} strokeWidth="8" fill="none" strokeDasharray="691" strokeDashoffset={691 - (691 * (progreso / 100))} style={{ transition: "stroke-dashoffset 0.5s linear" }} strokeLinecap="round" />
+          </svg>
+          <div style={{ textAlign: "center", zIndex: 2 }}>
+            <div style={{ fontFamily: "'DM Mono'", fontSize: 54, fontWeight: 700, color: "var(--text)" }}>
+              {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+            </div>
+            {matId && <div style={{ fontSize: 11, color: "var(--blue)", fontWeight: 700, textTransform: "uppercase", marginTop: -4 }}>{materia?.nombre}</div>}
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: "flex", gap: 12 }}>
-        <button className="btn-primary" style={{ padding: "12px 40px", fontSize: 16 }} onClick={() => activo ? onPause() : onStart()}>
-          {activo ? "Pausar" : "Empezar"}
-        </button>
-        <button className="btn-ghost" style={{ padding: "12px 20px" }} onClick={onReset}>Reiniciar</button>
-      </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button className="btn-primary" style={{ padding: "12px 40px", fontSize: 16 }} onClick={() => activo ? onPause() : onStart()}>
+            {activo ? "Pausar" : "Empezar"}
+          </button>
+          <button className="btn-ghost" style={{ padding: "12px 20px" }} onClick={onReset}>Reiniciar</button>
+        </div>
 
-      <div style={{ display: "flex", gap: 10 }}>
-        <button className="tag" onClick={() => onSetModo("estudio")} style={{ background: modo === "estudio" ? "var(--blue-dim)" : "var(--surface2)", color: modo === "estudio" ? "var(--blue)" : "var(--text3)", cursor: "pointer", border: "none" }}>Pomodoro (25m)</button>
-        <button className="tag" onClick={() => onSetModo("descanso")} style={{ background: modo === "descanso" ? "var(--green-dim)" : "var(--surface2)", color: modo === "descanso" ? "var(--green)" : "var(--text3)", cursor: "pointer", border: "none" }}>Descanso (5m)</button>
-      </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="tag" onClick={() => onSetModo("estudio")} style={{ background: modo === "estudio" ? "var(--blue-dim)" : "var(--surface2)", color: modo === "estudio" ? "var(--blue)" : "var(--text3)", cursor: "pointer", border: "none" }}>Pomodoro (25m)</button>
+          <button className="tag" onClick={() => onSetModo("descanso")} style={{ background: modo === "descanso" ? "var(--green-dim)" : "var(--surface2)", color: modo === "descanso" ? "var(--green)" : "var(--text3)", cursor: "pointer", border: "none" }}>Descanso (5m)</button>
+          {!activo && matId && (
+            <button className="tag" onClick={() => setProbarQuiz(true)} style={{ background: "var(--surface2)", color: "var(--text3)", cursor: "pointer", border: "none" }}>Probar quiz</button>
+          )}
+        </div>
 
-      {sesion.bloques.length > 0 && (
-        <div style={{ width: "100%", maxWidth: 360 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <p className="section-title" style={{ margin: 0 }}>Sesión de hoy</p>
-            <button onClick={limpiarSesion} style={{ fontSize: 11, color: "var(--text3)", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
-          </div>
-          <div className="card" style={{ padding: 16, display: "flex", gap: 0 }}>
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 30, fontWeight: 800, color: "var(--blue)" }}>{sesion.bloques.length}</div>
-              <div style={{ fontSize: 11, color: "var(--text3)" }}>bloques</div>
+        {/* Stats de sesión */}
+        {sesion.bloques.length > 0 && (
+          <div style={{ width: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <p className="section-title" style={{ margin: 0 }}>Sesión de hoy · {materia?.nombre}</p>
+              <button onClick={limpiarSesion} style={{ fontSize: 11, color: "var(--text3)", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
             </div>
-            <div style={{ width: 1, background: "var(--border)", margin: "4px 0" }} />
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 30, fontWeight: 800, color: "var(--blue)" }}>{sesion.bloques.length * 25}m</div>
-              <div style={{ fontSize: 11, color: "var(--text3)" }}>estudiados</div>
-            </div>
-            {pctSesion !== null && <>
-              <div style={{ width: 1, background: "var(--border)", margin: "4px 0" }} />
-              <div style={{ flex: 1, textAlign: "center" }}>
-                <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 30, fontWeight: 800, color: pctSesion >= 80 ? "var(--green)" : pctSesion >= 60 ? "var(--blue)" : "var(--red)" }}>{pctSesion}%</div>
-                <div style={{ fontSize: 11, color: "var(--text3)" }}>precisión</div>
+            <div className="card" style={{ padding: "14px 16px", display: "flex", alignItems: "stretch" }}>
+              <div style={{ flex: 1, textAlign: "center", padding: "4px 0" }}>
+                <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 32, fontWeight: 800, color: "var(--blue)", lineHeight: 1 }}>{sesion.bloques.length}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>bloques</div>
               </div>
-            </>}
+              <div style={{ width: 1, background: "var(--border)" }} />
+              <div style={{ flex: 1, textAlign: "center", padding: "4px 0" }}>
+                <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 32, fontWeight: 800, color: "var(--blue)", lineHeight: 1 }}>{sesion.bloques.length * 25}m</div>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>estudiados</div>
+              </div>
+              {pctSesion !== null && <>
+                <div style={{ width: 1, background: "var(--border)" }} />
+                <div style={{ flex: 1, textAlign: "center", padding: "4px 0" }}>
+                  <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 32, fontWeight: 800, lineHeight: 1, color: pctSesion >= 80 ? "var(--green)" : pctSesion >= 60 ? "var(--blue)" : "var(--red)" }}>{pctSesion}%</div>
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>precisión</div>
+                </div>
+              </>}
+            </div>
+            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+              {sesion.bloques.map((b, i) => (
+                <div key={i} title={`Bloque ${i + 1}: ${b.correctas}/${b.total}`}
+                  style={{ flex: 1, height: 4, borderRadius: 2, background: b.total === 0 ? "var(--border)" : b.correctas / b.total >= 0.8 ? "var(--green)" : b.correctas / b.total >= 0.6 ? "var(--blue)" : "var(--red)" }} />
+              ))}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
-            {sesion.bloques.map((b, i) => (
-              <div key={i} title={`Bloque ${i + 1}: ${b.correctas}/${b.total}`}
-                style={{ flex: 1, height: 4, borderRadius: 2, background: b.total === 0 ? "var(--border)" : b.correctas / b.total >= 0.8 ? "var(--green)" : b.correctas / b.total >= 0.6 ? "var(--blue)" : "var(--red)" }} />
-            ))}
+        )}
+      </div>
+
+      {/* ── QUIZ MODAL ─────────────────────────────────────────────────────── */}
+      {mostrarModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div className="card fade-in" style={{ width: "100%", maxWidth: 520, overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--border)", textAlign: "center" }}>
+              {quizPendiente && <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "var(--blue)", marginBottom: 4 }}>BLOQUE TERMINADO</div>}
+              <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 22, fontWeight: 800 }}>
+                {probarQuiz ? "Probando quiz" : "Mini Quiz"} · {materia?.nombre || "Repaso"}
+              </h2>
+              {quizPendiente && <p style={{ fontSize: 13, color: "var(--text2)", marginTop: 4 }}>5 preguntas antes del descanso</p>}
+            </div>
+            <div style={{ padding: 24, overflowY: "auto" }}>
+              {materia
+                ? <MiniQuiz materia={materia} onDone={handleQuizDone} />
+                : <div style={{ textAlign: "center" }}>
+                    <button className="btn-primary" onClick={handleQuizDone}>
+                      {quizPendiente ? "Tomar descanso" : "Cerrar"}
+                    </button>
+                  </div>
+              }
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
