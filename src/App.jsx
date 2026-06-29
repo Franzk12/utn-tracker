@@ -126,7 +126,7 @@ export default function App() {
   useEffect(() => {
     if (session) {
       cargarTodo();
-      sb.from("profiles").select().eq("id", session.user.id).single().then(({ data }) => {
+      sb.from("profiles").select().eq("id", session.user.id).maybeSingle().then(({ data }) => {
         if (data) { setProfile(data); }
         else {
           const def = { id: session.user.id, nickname: session.user.email.split("@")[0], avatar_color: "#60a5fa" };

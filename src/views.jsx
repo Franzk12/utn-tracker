@@ -333,7 +333,7 @@ export function VistaAnalisis({ materias }) {
 
 // ─── VISTA ENFOQUE (POMODORO) ────────────────────────────────────────────────
 // ─── MINI QUIZ (post-bloque Pomodoro) ─────────────────────────────────────────
-function MiniQuiz({ materia, onDone }) {
+function MiniQuiz({ materia, onDone, onUpload }) {
   const [fase, setFase] = useState("cargando");
   const [preguntas, setPreguntas] = useState([]);
   const [idx, setIdx] = useState(0);
@@ -375,17 +375,47 @@ function MiniQuiz({ materia, onDone }) {
   const pct = preguntas.length > 0 ? Math.round((correctas / preguntas.length) * 100) : 0;
   const scoreColor = pct >= 80 ? "var(--green)" : pct >= 60 ? "var(--blue)" : "var(--red)";
 
+  const [subiendoDesdeModal, setSubiendoDesdeModal] = useState(false);
+
+  const handleUploadDesdeModal = async (file) => {
+    if (!onUpload) return;
+    setSubiendoDesdeModal(true);
+    await onUpload(file);
+    setSubiendoDesdeModal(false);
+    // Recargar el quiz con el nuevo banco
+    setSinBanco(false);
+    setFase("cargando");
+    setPreguntas([]); setIdx(0); setRespuestas([]); setRespondido(null); setError("");
+    const nombre = encodeURIComponent(materia?.nombre || "");
+    fetch(`/api/quiz?materia=${nombre}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setError(data.error); return; }
+        setPreguntas(data.preguntas);
+        setFase("respondiendo");
+      })
+      .catch(e => setError(e.message));
+  };
+
   if (sinBanco) return (
     <div style={{ textAlign: "center", padding: "20px 0" }}>
-      <div style={{ fontSize: 28, marginBottom: 12 }}>📄</div>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Sin banco de preguntas</div>
-      <div style={{ color: "var(--text2)", fontSize: 12, lineHeight: 1.6, marginBottom: 6 }}>
-        Creá un DOCX con tus preguntas y corré:
+      <div style={{ fontSize: 36, marginBottom: 12 }}>📝</div>
+      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Sin preguntas para {materia?.nombre}</div>
+      <div style={{ color: "var(--text2)", fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
+        Subí un archivo DOCX con tus preguntas de práctica y arrancamos.
       </div>
-      <code style={{ display: "block", background: "var(--surface2)", borderRadius: 6, padding: "8px 12px", fontSize: 11, color: "var(--blue)", marginBottom: 20, wordBreak: "break-all" }}>
-        node scripts/parse-quiz-docx.mjs archivo.docx {(materia?.nombre || "materia").toLowerCase().replace(/\s+/g, "-")}
-      </code>
-      <button className="btn-ghost" onClick={() => onDone(0, 0)}>Tomar descanso igual</button>
+      {onUpload && (
+        <label style={{ display: "inline-block", marginBottom: 12 }}>
+          <input type="file" accept=".docx" style={{ display: "none" }} disabled={subiendoDesdeModal}
+            onChange={e => { if (e.target.files[0]) handleUploadDesdeModal(e.target.files[0]); e.target.value = ""; }} />
+          <span className="btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", cursor: subiendoDesdeModal ? "wait" : "pointer", opacity: subiendoDesdeModal ? 0.6 : 1 }}>
+            {subiendoDesdeModal ? "Subiendo…" : "Subir DOCX de preguntas"}
+          </span>
+        </label>
+      )}
+      <div>
+        <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => onDone(0, 0)}>Tomar descanso igual</button>
+      </div>
     </div>
   );
 
@@ -478,7 +508,7 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
   useEffect(() => {
     if (!materia) { setBancoDB(null); return; }
     const slug = slugifyNombre(materia.nombre);
-    sb.from("quiz_banks").select("preguntas_count, updated_at").eq("materia_slug", slug).single()
+    sb.from("quiz_banks").select("preguntas_count, updated_at").eq("materia_slug", slug).maybeSingle()
       .then(({ data }) => setBancoDB(data || null));
   }, [materia?.id]);
 
@@ -666,7 +696,7 @@ export function VistaEnfoque({ materias, sessionEnfoque, onStart, onPause, onRes
             </div>
             <div style={{ padding: 24, overflowY: "auto" }}>
               {materia
-                ? <MiniQuiz materia={materia} onDone={handleQuizDone} />
+                ? <MiniQuiz materia={materia} onDone={handleQuizDone} onUpload={subirDocxEnfoque} />
                 : <div style={{ textAlign: "center" }}>
                     <button className="btn-primary" onClick={handleQuizDone}>
                       {quizPendiente ? "Tomar descanso" : "Cerrar"}
@@ -2293,11 +2323,12 @@ export function TutorialModal({ onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div className="card fade-in" style={{ width: "100%", maxWidth: 420, padding: 32, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+      <div className="card fade-in" style={{ width: "100%", maxWidth: 420, padding: 32, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", position: "relative" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", color: "var(--text3)", fontSize: 20, cursor: "pointer", lineHeight: 1, padding: 4 }} aria-label="Cerrar">×</button>
         <div style={{ fontSize: 56, marginBottom: 16 }}>{steps[step].icon}</div>
         <h2 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Barlow Condensed'", marginBottom: 12 }}>{steps[step].title}</h2>
         <p style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.5, minHeight: 65 }}>{steps[step].desc}</p>
-        
+
         <div style={{ display: "flex", gap: 6, margin: "24px 0" }}>
           {steps.map((_, i) => (
             <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i === step ? "var(--blue)" : "var(--border)", transition: "all 0.3s" }} />
