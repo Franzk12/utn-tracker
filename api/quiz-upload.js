@@ -12,8 +12,47 @@ function slugify(nombre) {
 }
 
 function parsearPreguntas(rawText) {
-  const bloques = rawText.split(/\n{2,}|^---+$/m).map(b => b.trim()).filter(Boolean);
+  const usaFormatoNro = /^N°\s*\d+/m.test(rawText);
 
+  if (usaFormatoNro) {
+    // Formato: N° X / Tema / ¿Pregunta? / A) ... / Respuesta correcta: B) explicación
+    const chunks = rawText.split(/^N°\s*\d+\s*$/m).map(c => c.trim()).filter(Boolean);
+    const preguntas = [];
+    const opcionRe = /^([A-D])\)\s+(.+)/;
+    const respuestaRe = /^Respuesta correcta:\s*([A-D])\)\s*/i;
+
+    for (const chunk of chunks) {
+      const lineas = chunk.split("\n").map(l => l.trim()).filter(Boolean);
+      const opciones = [];
+      const letraIdx = {};
+      let pregunta = "";
+      let correctaLetra = "";
+      let explicacion = "";
+
+      for (const l of lineas) {
+        const opM = l.match(opcionRe);
+        const respM = l.match(respuestaRe);
+        if (opM) {
+          letraIdx[opM[1]] = opciones.length;
+          opciones.push(opM[2]);
+        } else if (respM) {
+          correctaLetra = respM[1];
+          explicacion = l.replace(respuestaRe, "").trim();
+        } else if (!pregunta && (l.includes("?") || l.includes("¿"))) {
+          pregunta = l;
+        }
+      }
+
+      const correcta = correctaLetra !== "" ? (letraIdx[correctaLetra] ?? -1) : -1;
+      if (pregunta && opciones.length >= 2 && correcta !== -1) {
+        preguntas.push({ pregunta, opciones, correcta, explicacion });
+      }
+    }
+    return preguntas;
+  }
+
+  // Formato original: bloques separados por línea en blanco, *opción correcta
+  const bloques = rawText.split(/\n{2,}|^---+$/m).map(b => b.trim()).filter(Boolean);
   function esOpcion(l) { return /^[\*]?[A-Da-d][).:\-]\s/.test(l) || l.startsWith("*"); }
   function limpiarOpcion(l) { return l.replace(/^[A-Da-d][).:\-]\s*/, "").replace(/\s*\*$/, "").trim(); }
 

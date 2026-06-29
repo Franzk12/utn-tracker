@@ -48,57 +48,69 @@ if (!fs.existsSync(resolved)) {
 
 const { value: rawText } = await mammoth.extractRawText({ path: resolved });
 
-const bloques = rawText
-  .split(/\n{2,}|^---+$/m)
-  .map(b => b.trim())
-  .filter(Boolean);
-
-function parsearOpcion(linea) {
-  // Quita prefijos tipo "A)", "a.", "A-" al inicio
-  return linea.replace(/^[A-Da-d][).:\-]\s*/, '').replace(/\s*\*$/, '').trim();
-}
-
-function esOpcion(linea) {
-  return /^[\*]?[A-Da-d][).:\-]\s/.test(linea) || /^[\*]/.test(linea);
-}
-
 const preguntas = [];
 const errores = [];
 
-for (let i = 0; i < bloques.length; i++) {
-  const lineas = bloques[i].split('\n').map(l => l.trim()).filter(Boolean);
-  if (lineas.length < 3) continue;
+const usaFormatoNro = /^N°\s*\d+/m.test(rawText);
 
-  // Primera línea que NO empiece con opción es la pregunta
-  let preguntaIdx = 0;
-  while (preguntaIdx < lineas.length && esOpcion(lineas[preguntaIdx])) preguntaIdx++;
-  if (preguntaIdx >= lineas.length) { errores.push(`Bloque ${i + 1}: no se encontró pregunta`); continue; }
+if (usaFormatoNro) {
+  // Formato: N° X / Tema / ¿Pregunta? / A) ... / Respuesta correcta: B) explicación
+  const chunks = rawText.split(/^N°\s*\d+\s*$/m).map(c => c.trim()).filter(Boolean);
+  const opcionRe = /^([A-D])\)\s+(.+)/;
+  const respuestaRe = /^Respuesta correcta:\s*([A-D])\)\s*/i;
 
-  const pregunta = lineas[preguntaIdx].replace(/^[?¿]/, '').trim();
+  for (let i = 0; i < chunks.length; i++) {
+    const lineas = chunks[i].split('\n').map(l => l.trim()).filter(Boolean);
+    const opciones = [], letraIdx = {};
+    let pregunta = '', correctaLetra = '', explicacion = '';
 
-  // Líneas de opciones: siguientes que sean opciones
-  const opcionesLineas = lineas.slice(preguntaIdx + 1).filter(l => !/^explicaci[oó]n[:\s]/i.test(l));
-  const explicacionLinea = lineas.find(l => /^explicaci[oó]n[:\s]/i.test(l));
-  const explicacion = explicacionLinea
-    ? explicacionLinea.replace(/^explicaci[oó]n[:\s]*/i, '').trim()
-    : '';
+    for (const l of lineas) {
+      const opM = l.match(opcionRe), respM = l.match(respuestaRe);
+      if (opM) { letraIdx[opM[1]] = opciones.length; opciones.push(opM[2]); }
+      else if (respM) { correctaLetra = respM[1]; explicacion = l.replace(respuestaRe, '').trim(); }
+      else if (!pregunta && (l.includes('?') || l.includes('¿'))) pregunta = l;
+    }
 
-  const opciones = [];
-  let correcta = -1;
-
-  for (const l of opcionesLineas) {
-    if (opciones.length >= 4) break;
-    const esCorrecta = l.startsWith('*') || l.endsWith('*');
-    const texto = parsearOpcion(l.startsWith('*') ? l.slice(1) : l);
-    if (!texto) continue;
-    if (esCorrecta) correcta = opciones.length;
-    opciones.push(texto);
+    const correcta = correctaLetra !== '' ? (letraIdx[correctaLetra] ?? -1) : -1;
+    if (!pregunta) { errores.push(`Pregunta ${i + 1}: no se encontró enunciado`); continue; }
+    if (opciones.length < 2) { errores.push(`Pregunta ${i + 1}: menos de 2 opciones`); continue; }
+    if (correcta === -1) { errores.push(`Pregunta ${i + 1}: no se encontró "Respuesta correcta:"`); continue; }
+    preguntas.push({ pregunta, opciones, correcta, explicacion });
   }
+} else {
+  // Formato original: bloques separados por línea en blanco, *opción correcta
+  const bloques = rawText.split(/\n{2,}|^---+$/m).map(b => b.trim()).filter(Boolean);
+  const parsearOpcion = l => l.replace(/^[A-Da-d][).:\-]\s*/, '').replace(/\s*\*$/, '').trim();
+  const esOpcion = l => /^[\*]?[A-Da-d][).:\-]\s/.test(l) || /^[\*]/.test(l);
 
-  if (opciones.length < 2) { errores.push(`Bloque ${i + 1}: menos de 2 opciones — se omite`); continue; }
-  if (correcta === -1) { errores.push(`Bloque ${i + 1}: ninguna opción marcada con * — se omite`); continue; }
+  for (let i = 0; i < bloques.length; i++) {
+    const lineas = bloques[i].split('\n').map(l => l.trim()).filter(Boolean);
+    if (lineas.length < 3) continue;
 
-  preguntas.push({ pregunta, opciones, correcta, explicacion });
+    let preguntaIdx = 0;
+    while (preguntaIdx < lineas.length && esOpcion(lineas[preguntaIdx])) preguntaIdx++;
+    if (preguntaIdx >= lineas.length) { errores.push(`Bloque ${i + 1}: no se encontró pregunta`); continue; }
+
+    const pregunta = lineas[preguntaIdx].replace(/^[?¿]/, '').trim();
+    const opcionesLineas = lineas.slice(preguntaIdx + 1).filter(l => !/^explicaci[oó]n[:\s]/i.test(l));
+    const explicacionLinea = lineas.find(l => /^explicaci[oó]n[:\s]/i.test(l));
+    const explicacion = explicacionLinea ? explicacionLinea.replace(/^explicaci[oó]n[:\s]*/i, '').trim() : '';
+
+    const opciones = [];
+    let correcta = -1;
+    for (const l of opcionesLineas) {
+      if (opciones.length >= 4) break;
+      const esCorrecta = l.startsWith('*') || l.endsWith('*');
+      const texto = parsearOpcion(l.startsWith('*') ? l.slice(1) : l);
+      if (!texto) continue;
+      if (esCorrecta) correcta = opciones.length;
+      opciones.push(texto);
+    }
+
+    if (opciones.length < 2) { errores.push(`Bloque ${i + 1}: menos de 2 opciones — se omite`); continue; }
+    if (correcta === -1) { errores.push(`Bloque ${i + 1}: ninguna opción marcada con * — se omite`); continue; }
+    preguntas.push({ pregunta, opciones, correcta, explicacion });
+  }
 }
 
 if (errores.length) {
