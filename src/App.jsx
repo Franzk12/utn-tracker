@@ -7,7 +7,7 @@ import { G } from "./styles";
 import { Icon } from "./components/Icon";
 import { ToastContainer, BloqueadoIA, ConfirmModal, Modal, Lbl, Spinner } from "./components/ui";
 import { useIsMobile, useToast, usePushNotifications, useNotificaciones } from "./hooks";
-import { PanelNotificaciones, AuthPage, Dashboard, VistaAnalisis, VistaEnfoque, FormMateria, VistasMaterias, VistaHorarios, VistaMapa, ImportadorIA, FormEvento, VistaTareas, VistaEventos, VistaArchivos, VistaChatArchivo, VistaAsistente, TutorialModal, VistaPerfil, AvatarBtn, VistaCalculadora } from "./views";
+import { PanelNotificaciones, AuthPage, Dashboard, VistaAnalisis, VistaEnfoque, FormMateria, VistasMaterias, VistaHorarios, VistaMapa, ImportadorIA, FormEvento, VistaTareas, VistaEventos, VistaArchivos, VistaChatArchivo, VistaAsistente, TutorialModal, VistaPerfil, AvatarBtn, VistaCalculadora, VistaRanking } from "./views";
 
 
 
@@ -334,6 +334,7 @@ export default function App() {
               {vista === "enfoque" && <VistaEnfoque materias={materias} sessionEnfoque={{ ...enfoque, progreso: progEnfoque }} onStart={startEnfoque} onPause={pauseEnfoque} onReset={resetEnfoque} onSetModo={setModoEnfoque} onSetMateria={setMateriaEnfoque} quizPendiente={quizPendiente} onQuizDone={onQuizDone} showToast={showToast} />}
               {vista === "archivos" && <VistaArchivos materias={materias} archivos={archivos} carpetas={carpetas} userId={session.user.id} showToast={showToast} onAskIA={(a) => setChatArchivo(a)} onRefresh={cargarTodo} />}
               {vista === "notas" && <VistaCalculadora materias={materias} />}
+              {vista === "ranking" && <VistaRanking session={session} />}
             </>}
           </div>
         </main>

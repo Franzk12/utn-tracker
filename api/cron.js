@@ -10,7 +10,7 @@ webpush.setVapidDetails(
 
 const sb = createClient(
   process.env.VITE_SUPA_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPA_SERVICE_KEY
 );
 
 // Enviar notificación push a un usuario

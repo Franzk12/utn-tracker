@@ -2512,6 +2512,162 @@ export function VistaPerfil({ session, profile, onProfileSave, showToast, onClos
   );
 }
 
+// ─── RANKING QUIZ ─────────────────────────────────────────────────────────────
+
+export function VistaRanking({ session }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("global");
+
+  useEffect(() => {
+    fetch("/api/ranking")
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner /></div>;
+  if (!data) return <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>No se pudo cargar el ranking.</div>;
+
+  const myId = session?.user?.id;
+  const matTabs = Object.keys(data.materias).sort();
+  const lista = tab === "global" ? data.global : (data.materias[tab] || []);
+  const top3 = lista.slice(0, 3);
+
+  // Podio visual: orden [2°, 1°, 3°] para que el primero quede en el centro y más alto
+  const podioOrder = [1, 0, 2].filter(i => top3[i]);
+  const podioH = [80, 120, 60]; // altura del pedestal por posición
+  const medals = ["🥇", "🥈", "🥉"];
+  const medalColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 640 }}>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+        <button
+          onClick={() => setTab("global")}
+          style={{ fontSize: 11, padding: "5px 14px", whiteSpace: "nowrap", flexShrink: 0, borderRadius: 20, border: tab === "global" ? "none" : "1px solid var(--border)", background: tab === "global" ? "var(--blue)" : "var(--surface2)", color: tab === "global" ? "#fff" : "var(--text2)", fontWeight: tab === "global" ? 700 : 400, cursor: "pointer" }}
+        >
+          Global
+        </button>
+        {matTabs.map(m => (
+          <button key={m}
+            onClick={() => setTab(m)}
+            style={{ fontSize: 11, padding: "5px 14px", whiteSpace: "nowrap", flexShrink: 0, borderRadius: 20, border: tab === m ? "none" : "1px solid var(--border)", background: tab === m ? "var(--blue)" : "var(--surface2)", color: tab === m ? "#fff" : "var(--text2)", fontWeight: tab === m ? 700 : 400, cursor: "pointer" }}
+          >
+            {m.split(" ").slice(0, 2).join(" ")}
+          </button>
+        ))}
+      </div>
+
+      {lista.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 48, color: "var(--text3)", fontSize: 13 }}>
+          Nadie jugó quizzes aquí todavía. ¡Sé el primero!
+        </div>
+      ) : (
+        <>
+          {/* Podio top 3 */}
+          {top3.length >= 1 && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 16, padding: "16px 0 0" }}>
+              {podioOrder.map(i => {
+                const p = top3[i];
+                if (!p) return null;
+                const isFirst = i === 0;
+                const inicial = (p.nickname || "?")[0].toUpperCase();
+                const isMe = p.user_id === myId;
+                return (
+                  <div key={p.user_id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                    {/* Avatar */}
+                    <div style={{ position: "relative" }}>
+                      <div style={{
+                        width: isFirst ? 72 : 54,
+                        height: isFirst ? 72 : 54,
+                        borderRadius: "50%",
+                        background: p.avatar_color,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontFamily: "'Barlow Condensed'", fontSize: isFirst ? 30 : 22, fontWeight: 800, color: "#000",
+                        border: isMe ? "3px solid var(--blue)" : `3px solid ${medalColors[i]}`,
+                        boxShadow: isFirst ? `0 4px 20px ${p.avatar_color}55` : "none",
+                      }}>
+                        {inicial}
+                      </div>
+                      <span style={{ position: "absolute", bottom: -6, right: -6, fontSize: isFirst ? 20 : 16 }}>{medals[i]}</span>
+                    </div>
+                    {/* Info */}
+                    <div style={{ textAlign: "center", maxWidth: isFirst ? 100 : 80 }}>
+                      <div style={{ fontWeight: 700, fontSize: isFirst ? 13 : 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {p.nickname}{isMe ? " (vos)" : ""}
+                      </div>
+                      <div style={{ fontFamily: "'Barlow Condensed'", fontSize: isFirst ? 28 : 22, fontWeight: 800, color: medalColors[i], lineHeight: 1.1 }}>
+                        {p.pct}%
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--text3)" }}>{p.quizzes} quiz{p.quizzes !== 1 ? "zes" : ""}</div>
+                    </div>
+                    {/* Pedestal */}
+                    <div style={{
+                      width: isFirst ? 90 : 70,
+                      height: podioH[i],
+                      borderRadius: "6px 6px 0 0",
+                      background: `linear-gradient(180deg, ${medalColors[i]}33, ${medalColors[i]}11)`,
+                      border: `1px solid ${medalColors[i]}44`,
+                      borderBottom: "none",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 22, color: medalColors[i] + "88",
+                    }}>
+                      {i + 1}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Lista completa */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {lista.map((p, idx) => {
+              const isMe = p.user_id === myId;
+              const inicial = (p.nickname || "?")[0].toUpperCase();
+              const pctColor = p.pct >= 80 ? "var(--green)" : p.pct >= 60 ? "var(--blue)" : "var(--red)";
+              return (
+                <div key={p.user_id} style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                  borderRadius: 10,
+                  border: `1px solid ${isMe ? "var(--blue)" : "var(--border)"}`,
+                  background: isMe ? "var(--blue-dim)" : "var(--surface2)",
+                }}>
+                  {/* Rank */}
+                  <div style={{ width: 26, textAlign: "center", fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 15, color: idx < 3 ? medalColors[idx] : "var(--text3)", flexShrink: 0 }}>
+                    {idx < 3 ? medals[idx] : `#${idx + 1}`}
+                  </div>
+                  {/* Avatar */}
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: p.avatar_color, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed'", fontWeight: 800, fontSize: 17, color: "#000", flexShrink: 0 }}>
+                    {inicial}
+                  </div>
+                  {/* Nombre + barra */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: isMe ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.nickname}{isMe ? " · vos" : ""}
+                    </div>
+                    <div style={{ marginTop: 5, height: 4, borderRadius: 2, background: "var(--border)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${p.pct}%`, borderRadius: 2, background: pctColor, transition: "width 0.6s ease" }} />
+                    </div>
+                  </div>
+                  {/* Score */}
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 22, fontWeight: 800, color: pctColor, lineHeight: 1 }}>{p.pct}%</div>
+                    <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>{p.quizzes} quizzes</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── CALCULADORA DE NOTAS ─────────────────────────────────────────────────────
 
 function calcDefault() {

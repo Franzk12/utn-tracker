@@ -111,5 +111,6 @@ export const NAV = [
   { id: "enfoque", label: "Enfoque", icon: "horarios" },
   { id: "archivos", label: "Archivos", icon: "archivos" },
   { id: "notas", label: "Notas", icon: "calc" },
+  { id: "ranking", label: "Ranking", icon: "trophy" },
 ];
-export const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", notas: "Calculadora de Notas" };
+export const TITULOS = { dashboard: "Dashboard", materias: "Mis Materias", horarios: "Horario Semanal", eventos: "Agenda Académica", enfoque: "Modo Enfoque", archivos: "Archivos", notas: "Calculadora de Notas", ranking: "Ranking Quiz" };
